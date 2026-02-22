@@ -83,7 +83,7 @@ async def live_ws(websocket: WebSocket):
             )
 
             async def browser_to_gemini():
-                """Forward mic audio + scene snapshots from browser to Gemini."""
+                """Forward mic audio from browser to Gemini via realtime input."""
                 try:
                     while True:
                         msg = await websocket.receive()
@@ -94,22 +94,7 @@ async def live_ws(websocket: WebSocket):
                                     mime_type="audio/pcm;rate=16000",
                                 )
                             )
-                        elif "text" in msg and msg["text"]:
-                            text = msg["text"]
-                            if text.startswith("SCENE:"):
-                                scene_data = text[6:].strip()
-                                await session.send_client_content(
-                                    turns=types.Content(
-                                        role="user",
-                                        parts=[types.Part(
-                                            text=(
-                                                "[SURVEILLANCE UPDATE - live webcam landmark data]: "
-                                                + scene_data
-                                            )
-                                        )],
-                                    ),
-                                    turn_complete=True,
-                                )
+                        # ignore all text messages (no scene snapshots)
                 except WebSocketDisconnect:
                     pass
                 except Exception as exc:

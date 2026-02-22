@@ -168,7 +168,6 @@
       <div id="header-sub">UNIT 8200 &nbsp;&middot;&nbsp; MOSSAD &nbsp;&middot;&nbsp; IDF &nbsp;&middot;&nbsp; SURVEILLANCE ACTIVE</div>
     </div>
   </div>
-  <div id="snap-label">SNAPSHOT: --</div>
 </div>
 
 <div id="scene">
@@ -185,8 +184,6 @@
     <div class="bdot"></div>
     <span id="badge-text">STANDBY</span>
   </div>
-  <span id="snap-flash">&#x25A0; SNAPSHOT SENT</span>
-
   <button id="mic-btn" class="ctrl-btn" title="Toggle mic">&#x1F399;</button>
   <button id="spk-btn" class="ctrl-btn" title="Toggle speaker">&#x1F50A;</button>
 
@@ -210,7 +207,7 @@
     </div>
   </div>
 
-  <div id="snap-bar"></div>
+
 </div>
 
 <div id="splash">
@@ -244,9 +241,6 @@ const aiText      = document.getElementById("ai-text");
 const faceCount   = document.getElementById("face-count");
 const handCount   = document.getElementById("hand-count");
 const vibeText    = document.getElementById("vibe-text");
-const snapBar     = document.getElementById("snap-bar");
-const snapLabel   = document.getElementById("snap-label");
-const snapFlash   = document.getElementById("snap-flash");
 const waveform    = document.getElementById("waveform");
 const splash      = document.getElementById("splash");
 const startBtn    = document.getElementById("start-btn");
@@ -414,14 +408,6 @@ function connectLive() {
   liveWs.onerror = (err) => console.error("[live ws]", err);
 }
 
-function sendScene(scene) {
-  if (liveWs && liveWs.readyState === WebSocket.OPEN) {
-    liveWs.send("SCENE:" + scene);
-    snapFlash.classList.add("show");
-    setTimeout(() => snapFlash.classList.remove("show"), 1800);
-  }
-}
-
 // ---- Status helper -------------------------------------------------------
 function setStatus(state) {
   statusBadge.className = state;
@@ -439,22 +425,6 @@ function typewrite(el, text, speed = 22) {
     if (i < text.length) el.textContent += text[i++];
     else { clearInterval(iv); el.classList.remove("typing"); }
   }, speed);
-}
-
-// ---- Snapshot timer (every 45s) ------------------------------------------
-const SNAP_INTERVAL = 45000;
-let lastSnapTime    = 0;
-
-function updateSnap(ts) {
-  const elapsed = ts - lastSnapTime;
-  const pct     = Math.min(elapsed / SNAP_INTERVAL, 1);
-  snapBar.style.width = (pct * 100) + "%";
-  const sec = Math.max(0, Math.ceil((SNAP_INTERVAL - elapsed) / 1000));
-  snapLabel.textContent = "SNAPSHOT: " + sec + "s";
-  if (elapsed >= SNAP_INTERVAL) {
-    lastSnapTime = ts;
-    sendScene(buildScene(latestFaceResult, latestHandResult));
-  }
 }
 
 // ---- Landmark helpers ----------------------------------------------------
@@ -571,8 +541,6 @@ async function boot() {
   splash.style.display = "none";
   micBtn.classList.add("show");
   spkBtn.classList.add("show");
-  lastSnapTime = performance.now() - (SNAP_INTERVAL - 8000); // first snapshot in ~8s
-
   // Init audio + WebSocket (requires user gesture)
   initOutAudio();
   // Force AudioContext to running state right after the user gesture
@@ -627,7 +595,6 @@ function renderLoop() {
   handCount.textContent = latestHandResult.landmarks.length;
   vibeText.textContent  = latestFaceResult.faceLandmarks.length > 0 ? "target acquired" : "no target";
 
-  updateSnap(ts);
   requestAnimationFrame(renderLoop);
 }
 
