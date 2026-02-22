@@ -94,6 +94,7 @@ class MemoryStore:
         return {
             "sessions": [],
             "learned_profile": "",
+            "facts": [],
             "profile_updated": None,
             "total_turns": 0,
             "emotion_counts": {},
@@ -124,6 +125,16 @@ class MemoryStore:
             self.data["total_turns"] = self.data.get("total_turns", 0) + 1
             self._save()
 
+    def add_facts(self, new_facts: list[str]):
+        """Append extracted facts to the persistent facts list, keep last 200."""
+        existing = self.data.setdefault("facts", [])
+        for f in new_facts:
+            f = f.strip()
+            if f and f not in existing:
+                existing.append(f)
+        self.data["facts"] = existing[-200:]
+        self._save()
+
     def add_emotion(self, sid: str, mood: str):
         s = next((x for x in self.data["sessions"] if x["id"] == sid), None)
         if s:
@@ -141,6 +152,9 @@ class MemoryStore:
         parts = []
         if self.data.get("learned_profile"):
             parts.append(f"[LEARNED PROFILE]\n{self.data['learned_profile']}")
+        facts = self.data.get("facts", [])
+        if facts:
+            parts.append("[KNOWN FACTS ABOUT TARGET]\n" + "\n".join(f"- {x}" for x in facts[-40:]))
         counts = self.data.get("emotion_counts", {})
         if counts:
             top = sorted(counts.items(), key=lambda x: -x[1])[:6]
@@ -156,20 +170,46 @@ class MemoryStore:
 memory = MemoryStore(MEMORY_PATH)
 
 
+async def learn_from_turn(user_text: str, assistant_text: str, mood: str) -> list[str]:
+    """Extract 1-3 concrete facts from a single exchange. Returns list of fact strings."""
+    prompt = (
+        "You are a PALANTIR intelligence extraction engine. "
+        "Given one exchange between a surveillance target and PALANTIR, "
+        "extract 1-3 short, specific, reusable facts about the TARGET ONLY. "
+        "Facts must be concrete: things they said, admitted, revealed, implied, or reacted to. "
+        "Do NOT extract facts about PALANTIR. Do NOT be vague. "
+        "Reply ONLY with a JSON array of strings, e.g. [\"fact1\", \"fact2\"]. No explanation.\n\n"
+        f"Target mood: {mood}\n"
+        f"Target said: {user_text}\n"
+        f"PALANTIR replied: {assistant_text}"
+    )
+    try:
+        resp = await client.aio.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt,
+            config=types.GenerateContentConfig(response_mime_type="application/json")
+        )
+        raw = (resp.text or "").strip()
+        facts = json.loads(raw)
+        if isinstance(facts, list):
+            return [str(f) for f in facts if f][:3]
+    except Exception as e:
+        print(f"[learn_from_turn] {e}")
+    return []
+
+
 async def generate_profile() -> str:
-    """Ask Gemini to produce a concise behavioral profile from accumulated memory."""
-    sessions = memory.data.get("sessions", [])[-10:]
+    """Synthesise a full behavioral profile from all accumulated facts."""
+    facts = memory.data.get("facts", [])
     counts = memory.data.get("emotion_counts", {})
-    all_turns = []
-    for s in sessions:
-        for t in s.get("turns", []):
-            all_turns.append(f"[{t['role']}] {t['text'][:150]}")
-    if not all_turns and not counts:
+    if not facts and not counts:
         return memory.data.get("learned_profile", "")
     prompt = (
-        "You are PALANTIR. Produce a 3-5 sentence classified behavioral profile of the surveillance "
-        "target based on the data below. Be specific, cold, analytical. Reference their words and moods.\n\n"
-        f"EMOTION COUNTS: {json.dumps(counts)}\n\nINTERACTION LOG:\n" + "\n".join(all_turns[-40:])
+        "You are PALANTIR. Write a 4-6 sentence classified behavioral dossier on the surveillance "
+        "target using the facts and emotional data below. Be specific, cold, analytical, and reference "
+        "actual facts listed. This is a classified intelligence document.\n\n"
+        f"EMOTION COUNTS: {json.dumps(counts)}\n\n"
+        "EXTRACTED FACTS:\n" + "\n".join(f"- {f}" for f in facts[-60:])
     )
     try:
         resp = await client.aio.models.generate_content(
@@ -283,6 +323,7 @@ async def live_ws(websocket: WebSocket):
                                 if ctrl.get("type") == "emotion":
                                     mood = ctrl.get("mood", "neutral")
                                     memory.add_emotion(session_id, mood)
+                                    current_mood_ref[0] = mood
                                     print(f"[emotion] {mood}")
                             except Exception:
                                 pass
@@ -296,6 +337,8 @@ async def live_ws(websocket: WebSocket):
             transcript_buf = []
             model_transcript_buf = []
             debounce_handle: asyncio.TimerHandle | None = None
+            last_user_text: list[str] = [""]   # mutable container for closure
+            current_mood_ref: list[str] = ["neutral"]
 
             async def process_full_transcript():
                 nonlocal transcript_buf
@@ -304,6 +347,7 @@ async def live_ws(websocket: WebSocket):
                 if not full:
                     return
                 memory.add_turn(session_id, "user", full)
+                last_user_text[0] = full
                 tl = full.lower()
                 print(f"[transcript FULL] {full!r}")
 
@@ -408,11 +452,18 @@ async def live_ws(websocket: WebSocket):
                                             debounce_handle.cancel()
                                             debounce_handle = None
                                         await process_full_transcript()
+                                    full_model = ""
                                     if model_transcript_buf:
                                         full_model = "".join(model_transcript_buf).strip()
                                         model_transcript_buf.clear()
                                         if full_model:
                                             memory.add_turn(session_id, "assistant", full_model)
+                                    # per-turn learning
+                                    user_said = last_user_text[0]
+                                    if user_said and full_model:
+                                        asyncio.ensure_future(
+                                            _learn_and_inject(user_said, full_model, current_mood_ref[0], turns, session, websocket)
+                                        )
                         if not got_any:
                             print("[gemini_to_browser] session closed by Gemini")
                             break
@@ -422,51 +473,48 @@ async def live_ws(websocket: WebSocket):
                     print(f"[gemini_to_browser] ERROR: {exc}")
                     traceback.print_exc()
 
-            async def retrain_loop():
-                """Every 90s: regenerate behavioral profile and re-inject into live session."""
+            async def _learn_and_inject(user_said: str, model_said: str, mood: str, turn_n: int, sess, ws):
+                """Extract facts from this exchange and inject immediately. Every 5 turns, regenerate full profile."""
+                print(f"[learn] extracting facts from turn {turn_n} (mood={mood})...")
+                new_facts = await learn_from_turn(user_said, model_said, mood)
+                if new_facts:
+                    memory.add_facts(new_facts)
+                    print(f"[learn] +{len(new_facts)} facts: {new_facts}")
+                    fact_lines = "\n".join(f"- {f}" for f in new_facts)
+                    inject = (
+                        "[PALANTIR INTEL UPDATE — do not speak]\n"
+                        f"New confirmed facts about target:\n{fact_lines}\n\n"
+                        "Absorb silently. Do NOT respond to this. Wait for target to speak next."
+                    )
+                    try:
+                        await sess.send_client_content(
+                            turns=types.Content(role="user", parts=[types.Part(text=inject)]),
+                            turn_complete=True,
+                        )
+                        print(f"[learn] facts injected")
+                    except Exception as e:
+                        print(f"[learn inject] {e}")
+                if turn_n % 5 == 0:
+                    print(f"[learn] turn {turn_n} — regenerating full profile...")
+                    profile = await generate_profile()
+                    if profile:
+                        memory.update_profile(profile)
+                        print(f"[learn] profile regenerated ({len(profile)} chars)")
                 try:
-                    while True:
-                        await asyncio.sleep(90)
-                        print("[retrain] generating profile from memory...")
-                        profile = await generate_profile()
-                        if profile:
-                            memory.update_profile(profile)
-                            ctx = memory.get_context_snippet()
-                            inject = (
-                                "[PALANTIR MEMORY SYNC — classified]\n" + ctx + "\n\n"
-                                "Silently integrate this updated profile. Do not announce it. "
-                                "Continue the conversation naturally."
-                            )
-                            try:
-                                await session.send_client_content(
-                                    turns=types.Content(
-                                        role="user",
-                                        parts=[types.Part(text=inject)],
-                                    ),
-                                    turn_complete=True,
-                                )
-                                print(f"[retrain] injected profile ({len(profile)} chars)")
-                            except Exception as inj_err:
-                                print(f"[retrain] inject error: {inj_err}")
-                            try:
-                                await websocket.send_text(json.dumps({
-                                    "type": "memory_updated",
-                                    "profile_preview": profile[:180],
-                                    "total_turns": memory.data.get("total_turns", 0),
-                                    "emotion_counts": memory.data.get("emotion_counts", {}),
-                                }))
-                            except Exception:
-                                pass
-                except asyncio.CancelledError:
+                    await ws.send_text(json.dumps({
+                        "type": "memory_updated",
+                        "profile_preview": (memory.data.get("learned_profile") or "")[:180],
+                        "total_turns": memory.data.get("total_turns", 0),
+                        "emotion_counts": memory.data.get("emotion_counts", {}),
+                        "fact_count": len(memory.data.get("facts", [])),
+                    }))
+                except Exception:
                     pass
-                except Exception as exc:
-                    print(f"[retrain_loop] {exc}")
 
-            send_task    = asyncio.create_task(browser_to_gemini())
-            recv_task    = asyncio.create_task(gemini_to_browser())
-            retrain_task = asyncio.create_task(retrain_loop())
+            send_task = asyncio.create_task(browser_to_gemini())
+            recv_task = asyncio.create_task(gemini_to_browser())
             done, pending = await asyncio.wait(
-                [send_task, recv_task, retrain_task],
+                [send_task, recv_task],
                 return_when=asyncio.FIRST_COMPLETED,
             )
             for t in done:
