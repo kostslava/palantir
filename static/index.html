@@ -12,8 +12,12 @@
       overflow: hidden; height: 100vh;
       display: flex; flex-direction: column;
     }
+    @keyframes pulsed   { 0%,100%{opacity:1} 50%{opacity:.3} }
+    @keyframes scandown { 0%{top:0%} 100%{top:100%} }
+    @keyframes wv       { 0%,100%{height:4px} 50%{height:24px} }
+    @keyframes shake    { 0%,100%{transform:none} 20%{transform:translate(-3px,1px) rotate(-0.3deg)} 40%{transform:translate(3px,-2px) rotate(0.3deg)} 60%{transform:translate(-2px,2px)} 80%{transform:translate(2px,-1px)} }
 
-    /* HEADER */
+    /* ── HEADER ── */
     #header {
       display: flex; align-items: center; gap: 12px;
       padding: 8px 20px; background: rgba(0,0,0,0.9);
@@ -22,34 +26,47 @@
     #conn-dot { width: 7px; height: 7px; border-radius: 50%; background: #222; flex-shrink: 0; }
     #conn-dot.live  { background: #00ff88; box-shadow: 0 0 8px #00ff88; animation: pulsed 2s infinite; }
     #conn-dot.error { background: #ff3366; box-shadow: 0 0 8px #ff3366; }
-    @keyframes pulsed { 0%,100%{opacity:1} 50%{opacity:.3} }
     #header h1 { font-size: 11px; letter-spacing: 6px; color: #fff; text-transform: uppercase; }
     #header-sub { font-size: 9px; color: #333; letter-spacing: 3px; }
+    #mood-badge { font-size: 8px; letter-spacing: 3px; text-transform: uppercase; color: #1a1a1a; margin-left: auto; transition: color 0.8s; padding-right: 4px; }
 
-    /* SCENE */
+    /* ── SCENE ── */
     #scene { position: relative; flex: 1; overflow: hidden; }
     #video  { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; }
     #canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: scaleX(-1); pointer-events: none; }
+    #scene.shake { animation: shake 0.25s ease infinite; }
 
-    /* SCAN LINE */
+    /* ── MOOD OVERLAY ── */
+    #mood-overlay {
+      position: absolute; inset: 0; pointer-events: none; z-index: 4;
+      transition: background 1.5s ease, box-shadow 1.5s ease;
+    }
+    #mood-overlay.sad        { background: rgba(0,20,70,0.18); box-shadow: inset 0 0 90px rgba(0,50,200,0.28); }
+    #mood-overlay.happy      { background: rgba(80,40,0,0.10); box-shadow: inset 0 0 80px rgba(200,120,0,0.14); }
+    #mood-overlay.angry      { background: rgba(80,0,0,0.18);  box-shadow: inset 0 0 110px rgba(220,0,0,0.40); }
+    #mood-overlay.surprised  { background: rgba(200,200,255,0.04); box-shadow: inset 0 0 70px rgba(180,180,255,0.10); }
+    #mood-overlay.suspicious { background: rgba(0,20,0,0.14);  box-shadow: inset 0 0 70px rgba(0,80,0,0.22); }
+
+    /* ── SCAN LINE ── */
     #scan-line {
       position: absolute; top: 0; left: 0; right: 0; height: 2px;
       background: linear-gradient(90deg, transparent, #00ff8833, transparent);
       animation: scandown 5s linear infinite; z-index: 5; pointer-events: none;
+      transition: background 1s ease;
     }
-    @keyframes scandown { 0%{top:0%} 100%{top:100%} }
 
-    /* CORNER BRACKETS */
+    /* ── CORNERS ── */
     .corner {
       position: absolute; width: 22px; height: 22px;
       border-color: #00ff8830; border-style: solid; z-index: 6; pointer-events: none;
+      transition: border-color 1.2s ease;
     }
-    .corner-tl { top: 12px; left: 12px; border-width: 1px 0 0 1px; }
-    .corner-tr { top: 12px; right: 12px; border-width: 1px 1px 0 0; }
+    .corner-tl { top: 12px; left: 12px;    border-width: 1px 0 0 1px; }
+    .corner-tr { top: 12px; right: 12px;   border-width: 1px 1px 0 0; }
     .corner-bl { bottom: 12px; left: 12px; border-width: 0 0 1px 1px; }
-    .corner-br { bottom: 12px; right: 12px; border-width: 0 1px 1px 0; }
+    .corner-br { bottom: 12px; right: 12px;border-width: 0 1px 1px 0; }
 
-    /* STATUS BADGE */
+    /* ── STATUS BADGE ── */
     #status-badge {
       position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
       z-index: 10; display: flex; align-items: center; gap: 7px;
@@ -66,27 +83,30 @@
     #status-badge.standby   .bdot { background: #333; }
     .bdot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
 
-    /* WAVEFORM (shown when AI is speaking) */
+    /* ── WAVEFORM ── */
     #waveform {
       position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
       z-index: 10; display: none; align-items: center; gap: 3px; height: 28px;
     }
     #waveform.active { display: flex; }
     .wbar { width: 3px; background: #4499ff88; border-radius: 2px; animation: wv .8s ease-in-out infinite; }
-    .wbar:nth-child(1){animation-delay:0s}  .wbar:nth-child(2){animation-delay:.1s}
-    .wbar:nth-child(3){animation-delay:.2s} .wbar:nth-child(4){animation-delay:.3s}
-    .wbar:nth-child(5){animation-delay:.4s} .wbar:nth-child(6){animation-delay:.3s}
-    .wbar:nth-child(7){animation-delay:.2s} .wbar:nth-child(8){animation-delay:.1s}
-    @keyframes wv { 0%,100%{height:4px} 50%{height:24px} }
+    .wbar:nth-child(1){animation-delay:0s}   .wbar:nth-child(2){animation-delay:.1s}
+    .wbar:nth-child(3){animation-delay:.2s}  .wbar:nth-child(4){animation-delay:.3s}
+    .wbar:nth-child(5){animation-delay:.4s}  .wbar:nth-child(6){animation-delay:.3s}
+    .wbar:nth-child(7){animation-delay:.2s}  .wbar:nth-child(8){animation-delay:.1s}
 
-    /* META (bottom left) */
-    #meta {
-      position: absolute; bottom: 14px; left: 18px; z-index: 10;
-      display: flex; gap: 12px; font-size: 10px; color: #2a2a2a;
-    }
+    /* ── META ── */
+    #meta { position: absolute; bottom: 14px; left: 18px; z-index: 10; display: flex; gap: 12px; font-size: 10px; color: #2a2a2a; }
     #meta strong { color: #444; }
 
-    /* BUTTONS */
+    /* ── MIC LEVEL ── */
+    #mic-level-wrap { position: absolute; bottom: 14px; right: 18px; z-index: 10; display: flex; align-items: center; gap: 6px; }
+    #mic-level-label { font-size: 8px; color: #333; letter-spacing: 2px; text-transform: uppercase; }
+    #mic-level-bar { width: 60px; height: 4px; background: #111; border-radius: 2px; overflow: hidden; }
+    #mic-level-fill { height: 100%; width: 0%; background: #ff4444; border-radius: 2px; transition: width 0.1s; }
+    #mic-level-wrap.active #mic-level-label { color: #ff6666; }
+
+    /* ── CTRL BUTTONS ── */
     .ctrl-btn {
       position: absolute; top: 12px; z-index: 12;
       background: rgba(0,0,0,.6); border: 1px solid #222; color: #555;
@@ -100,7 +120,17 @@
     #mic-btn.muted { border-color: #ff444444; color: #ff6644; }
     #spk-btn { right: 14px; }
 
-    /* SPLASH */
+    /* ── GESTURE LABEL ── */
+    #gesture-label {
+      position: absolute; top: 54px; right: 14px; z-index: 11;
+      font-size: 8px; letter-spacing: 3px; text-transform: uppercase;
+      background: rgba(0,0,0,0.6); padding: 4px 10px; border-radius: 12px;
+      color: #2a2a2a; transition: color 0.2s, opacity 0.4s;
+      opacity: 0; pointer-events: none;
+    }
+    #gesture-label.show { opacity: 1; }
+
+    /* ── SPLASH ── */
     #splash {
       position: absolute; inset: 0; background: #050508;
       display: flex; flex-direction: column; align-items: center;
@@ -121,6 +151,63 @@
     #start-btn:hover { border-color: #ff3333; color: #ff5555; box-shadow: 0 0 30px rgba(255,30,30,.08); }
     #start-btn:disabled { opacity: .25; cursor: not-allowed; color: #333; border-color: #111; box-shadow: none; }
     #load-status { font-size: 10px; color: #2a2a2a; letter-spacing: 2px; min-height: 14px; }
+
+    /* ── INTEL PANEL ── */
+    #intel-panel {
+      position: absolute; bottom: 0; left: 0; right: 0; z-index: 20;
+      background: rgba(2,5,8,0.97); border-top: 1px solid #0a1a0a;
+      transform: translateY(100%); transition: transform 0.35s cubic-bezier(0.22,1,0.36,1);
+      max-height: 42%; display: flex; flex-direction: column;
+    }
+    #intel-panel.open { transform: translateY(0); }
+    #intel-header { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-bottom: 1px solid #0d1f0d; flex-shrink: 0; }
+    #intel-status { font-size: 8px; letter-spacing: 4px; color: #00cc55; text-transform: uppercase; flex-shrink: 0; }
+    #intel-status.searching { color: #ffaa00; animation: pulsed 0.5s infinite; }
+    #intel-query { font-size: 9px; color: #00ff88; flex: 1; letter-spacing: 1px; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #intel-view-btn { font-size: 8px; color: #0088cc; letter-spacing: 2px; padding: 3px 9px; border: 1px solid #0a2a3a; border-radius: 3px; cursor: pointer; background: none; font-family: inherit; text-transform: uppercase; transition: all 0.2s; display: none; flex-shrink: 0; }
+    #intel-view-btn:hover { color: #44aaff; border-color: #44aaff; }
+    #intel-view-btn.show { display: block; }
+    #intel-close { background: none; border: none; color: #333; font-size: 13px; cursor: pointer; padding: 0 4px; line-height: 1; transition: color 0.15s; }
+    #intel-close:hover { color: #ff3333; }
+    #intel-results { overflow-y: auto; padding: 10px 14px 14px; display: flex; flex-direction: column; gap: 7px; }
+    #intel-results::-webkit-scrollbar { width: 3px; }
+    #intel-results::-webkit-scrollbar-thumb { background: #111; }
+    .result-card { background: #070f07; border: 1px solid #0d1f0d; border-radius: 4px; padding: 8px 11px; transition: border-color 0.2s; cursor: pointer; }
+    .result-card:hover { border-color: #00ff8840; }
+    .result-card.active { border-color: #0066cc80; background: #050e18; }
+    .result-title { font-size: 10px; color: #00cc55; letter-spacing: 1px; text-decoration: none; display: block; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+    .result-url { font-size: 8px; color: #1a3a1a; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .result-snippet { font-size: 9px; color: #3a5c3a; line-height: 1.6; }
+    .result-card.loading { display: flex; align-items: center; justify-content: center; min-height: 50px; color: #1a3a1a; letter-spacing: 3px; font-size: 9px; text-transform: uppercase; animation: pulsed 0.6s infinite; cursor: default; }
+
+    /* ── SITE VIEWER ── */
+    #site-viewer {
+      position: fixed; inset: 0; z-index: 50;
+      background: #04080c; display: flex; flex-direction: column;
+      transform: translateX(102%);
+      transition: transform 0.38s cubic-bezier(0.22,1,0.36,1);
+    }
+    #site-viewer.open { transform: translateX(0); }
+    #sv-header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 14px; background: rgba(0,2,8,0.98);
+      border-bottom: 1px solid #0a1a2a; flex-shrink: 0;
+    }
+    #sv-sigil { font-size: 10px; color: #0066aa; letter-spacing: 4px; text-transform: uppercase; flex-shrink: 0; border-right: 1px solid #0a1a2a; padding-right: 10px; }
+    #sv-url { color: #1a4a6a; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 9px; letter-spacing: 1px; }
+    #sv-back { background: none; border: 1px solid #0a1a2a; color: #334; font-family: inherit; font-size: 8px; letter-spacing: 3px; padding: 3px 10px; border-radius: 3px; cursor: pointer; text-transform: uppercase; flex-shrink: 0; transition: all 0.2s; }
+    #sv-back:hover { border-color: #00ff88; color: #00ff88; }
+    #sv-ext { color: #0055aa; text-decoration: none; font-size: 8px; letter-spacing: 2px; text-transform: uppercase; padding: 3px 9px; border: 1px solid #0a1a2a; border-radius: 3px; transition: all 0.2s; flex-shrink: 0; }
+    #sv-ext:hover { color: #44aaff; border-color: #44aaff; }
+    #sv-close { background: none; border: none; color: #333; font-size: 16px; cursor: pointer; padding: 2px 6px; transition: color 0.15s; flex-shrink: 0; }
+    #sv-close:hover { color: #ff4444; }
+    #sv-frame { flex: 1; border: none; background: #fff; display: block; }
+    #sv-blocked { flex: 1; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 20px; background: #04080c; }
+    #sv-blocked.show { display: flex; }
+    #sv-blocked-msg { font-size: 9px; letter-spacing: 3px; color: #1a3344; text-transform: uppercase; text-align: center; line-height: 2.2; }
+    #sv-blocked-link { font-size: 11px; letter-spacing: 5px; color: #0077cc; text-transform: uppercase; text-decoration: none; padding: 12px 32px; border: 1px solid #0a2a4a; border-radius: 3px; transition: all 0.2s; }
+    #sv-blocked-link:hover { color: #44aaff; border-color: #44aaff; box-shadow: 0 0 24px rgba(0,80,200,0.22); }
+    #sv-blocked-sub { font-size: 8px; color: #111; letter-spacing: 2px; }
   </style>
 </head>
 <body>
@@ -131,11 +218,13 @@
     <h1>&#x2622; PALANTIR</h1>
     <div id="header-sub">UNIT 8200 &nbsp;&middot;&nbsp; MOSSAD &nbsp;&middot;&nbsp; IDF &nbsp;&middot;&nbsp; SURVEILLANCE ACTIVE</div>
   </div>
+  <div id="mood-badge">NEUTRAL</div>
 </div>
 
 <div id="scene">
   <video id="video" playsinline autoplay muted></video>
   <canvas id="canvas"></canvas>
+  <div id="mood-overlay"></div>
 
   <div class="corner corner-tl"></div>
   <div class="corner corner-tr"></div>
@@ -155,12 +244,45 @@
     <div class="wbar"></div><div class="wbar"></div>
   </div>
 
+  <div id="mic-level-wrap">
+    <span id="mic-level-label">MIC</span>
+    <div id="mic-level-bar"><div id="mic-level-fill"></div></div>
+  </div>
+
   <button id="mic-btn" class="ctrl-btn" title="Toggle mic">&#x1F399;</button>
   <button id="spk-btn" class="ctrl-btn" title="Toggle speaker">&#x1F50A;</button>
+  <div id="gesture-label"></div>
 
   <div id="meta">
     <span>&#x1F464; <strong id="face-count">0</strong></span>
     <span>&#x270B; <strong id="hand-count">0</strong></span>
+  </div>
+
+  <div id="intel-panel">
+    <div id="intel-header">
+      <span id="intel-status">SEARCHING</span>
+      <span id="intel-query"></span>
+      <button id="intel-view-btn">&#x1F4BB; VIEW SITE</button>
+      <button id="intel-close">&#x2715;</button>
+    </div>
+    <div id="intel-results"></div>
+  </div>
+</div>
+
+<!-- SITE VIEWER OVERLAY -->
+<div id="site-viewer">
+  <div id="sv-header">
+    <span id="sv-sigil">&#x2622; SITE INTEL</span>
+    <span id="sv-url"></span>
+    <button id="sv-back">&#x25C0; BACK</button>
+    <a id="sv-ext" href="#" target="_blank" rel="noopener">&#x2197; OPEN</a>
+    <button id="sv-close">&#x2715;</button>
+  </div>
+  <iframe id="sv-frame" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-top-navigation-by-user-activation"></iframe>
+  <div id="sv-blocked">
+    <div id="sv-blocked-msg">SITE BLOCKS EMBEDDING<br>CLASSIFIED PERIMETER SECURED<br>DIRECT ACCESS REQUIRED</div>
+    <a id="sv-blocked-link" href="#" target="_blank" rel="noopener">&#x2197; OPEN EXTERNAL LINK</a>
+    <div id="sv-blocked-sub">PALANTIR GOTHAM SITE INTEL v2.4</div>
   </div>
 </div>
 
@@ -184,273 +306,720 @@ import {
   FilesetResolver, DrawingUtils
 } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
 
-const video       = document.getElementById("video");
-const canvas      = document.getElementById("canvas");
-const ctx         = canvas.getContext("2d");
-const connDot     = document.getElementById("conn-dot");
-const statusBadge = document.getElementById("status-badge");
-const badgeText   = document.getElementById("badge-text");
-const waveform    = document.getElementById("waveform");
-const faceCount   = document.getElementById("face-count");
-const handCount   = document.getElementById("hand-count");
-const splash      = document.getElementById("splash");
-const startBtn    = document.getElementById("start-btn");
-const loadStatus  = document.getElementById("load-status");
-const micBtn      = document.getElementById("mic-btn");
-const spkBtn      = document.getElementById("spk-btn");
+// ─── DOM refs ────────────────────────────────────────────────────────────────
+const video        = document.getElementById("video");
+const canvas       = document.getElementById("canvas");
+const ctx          = canvas.getContext("2d");
+const connDot      = document.getElementById("conn-dot");
+const statusBadge  = document.getElementById("status-badge");
+const badgeText    = document.getElementById("badge-text");
+const waveform     = document.getElementById("waveform");
+const faceCountEl  = document.getElementById("face-count");
+const handCountEl  = document.getElementById("hand-count");
+const splash       = document.getElementById("splash");
+const startBtn     = document.getElementById("start-btn");
+const loadStatus   = document.getElementById("load-status");
+const micBtn       = document.getElementById("mic-btn");
+const spkBtn       = document.getElementById("spk-btn");
+const moodOverlay  = document.getElementById("mood-overlay");
+const moodBadge    = document.getElementById("mood-badge");
+const gestureLabel = document.getElementById("gesture-label");
+const scanLine     = document.getElementById("scan-line");
+const scene        = document.getElementById("scene");
+const corners      = document.querySelectorAll(".corner");
 
 let faceLandmarker, handLandmarker, drawingUtils;
 let latestFaceResult = { faceLandmarks: [] };
 let latestHandResult = { landmarks: [], handedness: [] };
-let micMuted = false;
-let spkMuted = false;
-let liveWs   = null;
+let micMuted = false, spkMuted = false, liveWs = null;
+let lastRenderTs = 0;
 
-// ── Playback: 24kHz PCM from Gemini ───────────────────────────────────────
-const OUT_SR = 24000;
-let outCtx       = null;
-let nextPlayTime = 0;
-let isSpeaking   = false;
-let speakTimer   = null;
+// ─── MOOD SYSTEM ──────────────────────────────────────────────────────────────
+const MOOD_PALETTES = {
+  neutral:    { eye:"#00C8FF", lip:"#FF4466", mesh:"#FFFFFF07", oval:"#ffffff18", brow:"#ffcc0066", scan:"linear-gradient(90deg,transparent,#00ff8833,transparent)", corner:"#00ff8830" },
+  sad:        { eye:"#5577ff", lip:"#6699ff", mesh:"#0022aa08", oval:"#002299",   brow:"#3355cc",   scan:"linear-gradient(90deg,transparent,#4466ff44,transparent)", corner:"#334488" },
+  happy:      { eye:"#ffcc22", lip:"#ff9933", mesh:"#ffcc0008", oval:"#ffaa0030", brow:"#ffcc00",   scan:"linear-gradient(90deg,transparent,#ffcc0044,transparent)", corner:"#ffaa0060" },
+  angry:      { eye:"#ff2200", lip:"#ff4400", mesh:"#cc000008", oval:"#cc000030", brow:"#ff2200",   scan:"linear-gradient(90deg,transparent,#ff220044,transparent)", corner:"#cc2200" },
+  surprised:  { eye:"#eeeeff", lip:"#ffaaff", mesh:"#ffffff10", oval:"#ffffff30", brow:"#ddddff",   scan:"linear-gradient(90deg,transparent,#aaaaffee,transparent)", corner:"#aaaaff" },
+  suspicious: { eye:"#00ff44", lip:"#00dd44", mesh:"#00cc0006", oval:"#00aa0030", brow:"#00cc00",   scan:"linear-gradient(90deg,transparent,#00ff8833,transparent)", corner:"#00aa00" },
+};
+const MOOD_LABELS = { neutral:"NEUTRAL", sad:"EMOTIONAL STATE: SAD", happy:"EMOTIONAL STATE: JOY", angry:"THREAT ELEVATED", surprised:"ALERT: SURPRISE", suspicious:"EVASIVE DETECTED" };
+const MOOD_LABEL_COLORS = { neutral:"#1a1a1a", sad:"#5577ff", happy:"#ffcc00", angry:"#ff3300", surprised:"#aaaaff", suspicious:"#00cc44" };
 
-function initOutAudio() {
-  outCtx = new AudioContext({ sampleRate: OUT_SR });
-  nextPlayTime = outCtx.currentTime;
+let currentMood = "neutral";
+let blendTarget = "neutral";
+let moodHistory = [];
+const MOOD_WINDOW = 22;
+let gestureLabelTimer = null;
+let activePalette = { ...MOOD_PALETTES.neutral };
+
+function setMoodPalette(mood) {
+  const p = MOOD_PALETTES[mood] || MOOD_PALETTES.neutral;
+  activePalette = { ...p };
+  moodOverlay.className = mood === "neutral" ? "" : mood;
+  scanLine.style.background = p.scan;
+  corners.forEach(c => c.style.borderColor = p.corner);
+  moodBadge.textContent   = MOOD_LABELS[mood] || mood.toUpperCase();
+  moodBadge.style.color   = MOOD_LABEL_COLORS[mood] || "#1a1a1a";
 }
 
-function schedulePCM(bytes) {
-  if (spkMuted || !outCtx) return;
-  if (outCtx.state === "suspended") outCtx.resume();
-  if (bytes.byteLength < 2) return;
-  const i16 = new Int16Array(bytes.buffer, bytes.byteOffset, Math.floor(bytes.byteLength / 2));
-  if (!i16.length) return;
-  const f32 = new Float32Array(i16.length);
-  for (let i = 0; i < i16.length; i++) f32[i] = i16[i] / 32768;
-  const buf = outCtx.createBuffer(1, f32.length, OUT_SR);
-  buf.getChannelData(0).set(f32);
-  const src = outCtx.createBufferSource();
-  src.buffer = buf;
-  src.connect(outCtx.destination);
-  if (nextPlayTime < outCtx.currentTime) nextPlayTime = outCtx.currentTime;
-  src.start(nextPlayTime + 0.01);
-  nextPlayTime += 0.01 + buf.duration;
-  setSpeaking(true);
-  clearTimeout(speakTimer);
-  speakTimer = setTimeout(() => setSpeaking(false), 800);
-}
-
-function setSpeaking(on) {
-  if (isSpeaking === on) return;
-  isSpeaking = on;
-  if (on) {
-    setStatus("speaking");
-    waveform.classList.add("active");
-  } else {
-    waveform.classList.remove("active");
-    setStatus(micMuted ? "standby" : "listening");
+function onMoodChange(prev, next) {
+  if (next === "angry") {
+    scene.classList.add("shake");
+    setTimeout(() => scene.classList.remove("shake"), 700);
+    flashAlpha = 0.12;
+    for (let i=0;i<18;i++) spawnEmber();
+  }
+  if (next === "sad") {
+    for (let i=0;i<20;i++) spawnRaindrop();
+  }
+  if (next === "happy") {
+    for (let i=0;i<35;i++) {
+      spawnSparkle(Math.random()*canvas.width, canvas.height*(0.4+Math.random()*0.6));
+    }
+  }
+  if (next === "surprised") {
+    const cx=canvas.width/2, cy=canvas.height*0.4;
+    for (let r=0;r<5;r++) {
+      rings.push({ x:cx, y:cy, radius:20+r*35, maxR:canvas.width, life:1.0, speed:300+r*60, color:"#ffffff", delay: r*0.07 });
+    }
+    flashAlpha = 0.08;
   }
 }
 
-// ── Microphone: 16kHz PCM16 via AudioWorklet ──────────────────────────────
-const WORKLET_CODE = `
+function tickMood(expr) {
+  moodHistory.push(expr);
+  if (moodHistory.length > MOOD_WINDOW) moodHistory.shift();
+  const counts = {};
+  for (const m of moodHistory) counts[m] = (counts[m]||0)+1;
+  const dominant = Object.entries(counts).sort((a,b)=>b[1]-a[1])[0][0];
+  if (dominant !== blendTarget) {
+    blendTarget = dominant;
+  }
+  // Only commit mood flip when dominant has clear majority
+  const dom_count = counts[blendTarget] || 0;
+  if (dom_count >= MOOD_WINDOW*0.55 && blendTarget !== currentMood) {
+    const prev = currentMood;
+    currentMood = blendTarget;
+    setMoodPalette(currentMood);
+    onMoodChange(prev, currentMood);
+  }
+}
+
+// ─── PARTICLE / EFFECT ARRAYS ─────────────────────────────────────────────────
+const particles    = [];
+const shockwaves   = [];
+const rings        = [];
+const textParticles= [];
+const laserBeams   = [];
+let flashAlpha     = 0;
+let ambientTimer   = 0;
+
+// ─── AMBIENT SPAWNERS ─────────────────────────────────────────────────────────
+function spawnRaindrop() {
+  particles.push({
+    x: Math.random()*canvas.width, y: -15,
+    vx: (Math.random()-0.5)*12, vy: 190+Math.random()*130,
+    life: 1, decay: 0.0018, size: 0.9+Math.random()*1.5, isRain: true,
+  });
+}
+function spawnSparkle(x,y) {
+  particles.push({
+    x, y, vx:(Math.random()-0.5)*45, vy:-(50+Math.random()*90),
+    life: 1, decay: 0.013+Math.random()*0.015, size: 1.8+Math.random()*2.8, isSparkle: true,
+  });
+}
+function spawnEmber() {
+  particles.push({
+    x: Math.random()*canvas.width, y: canvas.height*(0.4+Math.random()*0.6),
+    vx: (Math.random()-0.5)*55, vy: -(25+Math.random()*55),
+    life: 1, decay: 0.009+Math.random()*0.012, size: 1.5+Math.random()*2.8, isEmber: true,
+  });
+}
+function spawnMatrixChar() {
+  textParticles.push({
+    x: Math.random()*canvas.width, y: -18,
+    vy: 85+Math.random()*65,
+    char: String.fromCharCode(0x30A0+Math.floor(Math.random()*96)),
+    life: 1, decay: 0.0035+Math.random()*0.004,
+  });
+}
+
+// ─── PUNCH DETECTION ──────────────────────────────────────────────────────────
+const prevHandPos = {};
+
+function isFist(lms) {
+  const tips=[8,12,16,20], pips=[6,10,14,18]; let c=0;
+  for(let i=0;i<4;i++) if(lms[tips[i]].y>lms[pips[i]].y) c++;
+  return c>=3;
+}
+
+function runPunchCheck(lms, handIdx, ts) {
+  const wx=lms[0].x*canvas.width, wy=lms[0].y*canvas.height;
+  const prev=prevHandPos[handIdx];
+  if (prev) {
+    const dt=Math.max((ts-prev.ts)/1000,0.001);
+    const dx=wx-prev.x, dy=wy-prev.y;
+    if (Math.hypot(dx,dy)/dt>1800 && isFist(lms) && ts-(prev.lastPunch||0)>350) {
+      const fx=lms[9].x*canvas.width, fy=lms[9].y*canvas.height;
+      spawnPunchEffect(fx,fy,dx,dy);
+      prevHandPos[handIdx]={ x:wx, y:wy, ts, lastPunch:ts }; return;
+    }
+  }
+  prevHandPos[handIdx]={ x:wx, y:wy, ts, lastPunch:prev?.lastPunch||0 };
+}
+
+function spawnPunchEffect(x,y,dx,dy) {
+  flashAlpha=0.32;
+  shockwaves.push({x,y,r:14,life:1.0});
+  shockwaves.push({x,y,r:6,life:1.0,delay:0.08});
+  for(let i=0;i<70;i++){
+    const a=Math.random()*Math.PI*2, sp=180+Math.random()*520;
+    particles.push({x,y,vx:Math.cos(a)*sp+dx*2.5,vy:Math.sin(a)*sp+dy*2.5,life:0.8+Math.random()*0.5,decay:0.018+Math.random()*0.03,size:1.2+Math.random()*3.5,isPunch:true});
+  }
+  for(let i=0;i<18;i++){
+    const a=Math.random()*Math.PI*2, sp=260+Math.random()*380;
+    particles.push({x,y,vx:Math.cos(a)*sp+dx*2,vy:Math.sin(a)*sp+dy*2,px:x,py:y,life:0.9+Math.random()*0.3,decay:0.04+Math.random()*0.04,size:1.5+Math.random()*1.5,isLine:true});
+  }
+  for(let i=0;i<12;i++){
+    const a=Math.random()*Math.PI*2, sp=80+Math.random()*160;
+    particles.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:1.0,decay:0.008+Math.random()*0.01,size:3+Math.random()*5,isFlare:true});
+  }
+  showGesture("IMPACT DETECTED", "#ff6600");
+}
+
+// ─── GESTURE CLASSIFICATION ────────────────────────────────────────────────────
+const gestureState = {};
+
+function classifyHand(lms) {
+  const tips=[8,12,16,20], pips=[6,10,14,18];
+  const ext=[false,false,false,false,false];
+  ext[0] = Math.abs(lms[4].x-lms[0].x) > Math.abs(lms[2].x-lms[0].x)*1.1;
+  for(let i=0;i<4;i++) ext[i+1]=lms[tips[i]].y < lms[pips[i]].y;
+  const [th,idx,mid,ring,pnk]=ext;
+  const okD=Math.hypot(lms[4].x-lms[8].x, lms[4].y-lms[8].y);
+  if(okD<0.07 && mid && ring && pnk) return "ok";
+  if(!idx&&!mid&&!ring&&!pnk&&!th) return "fist";
+  if(idx&&mid&&!ring&&!pnk)         return "peace";
+  if(idx&&!mid&&!ring&&!pnk)        return "point";
+  if(idx&&mid&&ring&&pnk)           return "open";
+  if(!idx&&!mid&&!ring&&!pnk&&th)   return "thumbsup";
+  if(idx&&!mid&&!ring&&pnk)         return "rockon";
+  return "other";
+}
+
+function showGesture(text, color) {
+  gestureLabel.textContent=text;
+  gestureLabel.style.color=color;
+  gestureLabel.classList.add("show");
+  clearTimeout(gestureLabelTimer);
+  gestureLabelTimer=setTimeout(()=>gestureLabel.classList.remove("show"),1600);
+}
+
+function spawnPeace(lms) {
+  for(const tipIdx of [8,12]){
+    const x=lms[tipIdx].x*canvas.width, y=lms[tipIdx].y*canvas.height;
+    for(let i=0;i<22;i++){
+      const a=Math.random()*Math.PI*2, sp=55+Math.random()*130;
+      particles.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:1,decay:0.025+Math.random()*0.022,size:1.5+Math.random()*2,isPeace:true});
+    }
+  }
+  showGesture("✌  PEACE ACKNOWLEDGED", "#00ff88");
+}
+
+function spawnThumbsUp(lms) {
+  const x=lms[4].x*canvas.width, y=lms[4].y*canvas.height;
+  flashAlpha=0.10;
+  rings.push({x,y,radius:10,maxR:190,life:1,speed:310,color:"#ffcc00"});
+  rings.push({x,y,radius:4, maxR:130,life:1,speed:220,color:"#ffee88",delay:0.12});
+  for(let i=0;i<38;i++){
+    const a=-Math.PI/2+(Math.random()-0.5)*2.8, sp=90+Math.random()*210;
+    particles.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:1,decay:0.018+Math.random()*0.02,size:2+Math.random()*3,isGold:true});
+  }
+  showGesture("👍  APPROVED BY UNIT 8200", "#ffcc00");
+}
+
+function spawnRockOn(lms) {
+  for(const tipIdx of [8,20]){
+    const x=lms[tipIdx].x*canvas.width, y=lms[tipIdx].y*canvas.height;
+    for(let bolt=0;bolt<3;bolt++){
+      const baseAngle=-Math.PI/2+(Math.random()-0.5)*0.9;
+      const segLen=15+Math.random()*12;
+      let cx=x, cy=y;
+      for(let s=0;s<7;s++){
+        const nx=cx+(Math.cos(baseAngle)+(Math.random()-0.5)*1.2)*segLen;
+        const ny=cy+(Math.sin(baseAngle)+(Math.random()-0.5)*1.2)*segLen;
+        particles.push({px:cx,py:cy,x:nx,y:ny,vx:0,vy:0,life:0.55+Math.random()*0.35,decay:0.05,size:0.8+Math.random()*2,isLightning:true});
+        cx=nx; cy=ny;
+      }
+    }
+  }
+  showGesture("🤘  SIGNAL ACQUIRED", "#dd66ff");
+}
+
+function spawnShield(lms) {
+  const x=lms[0].x*canvas.width, y=lms[0].y*canvas.height;
+  for(let i=0;i<3;i++) rings.push({x,y,radius:20+i*25,maxR:220,life:1,speed:240+i*50,color:"#00ccff",delay:i*0.07});
+  showGesture("✋  HALT — PERIMETER SET", "#00ccff");
+}
+
+function spawnOK(lms) {
+  const mx=(lms[4].x+lms[8].x)/2*canvas.width, my=(lms[4].y+lms[8].y)/2*canvas.height;
+  rings.push({x:mx,y:my,radius:8,maxR:150,life:1,speed:270,color:"#88ff88"});
+  rings.push({x:mx,y:my,radius:3,maxR:100,life:1,speed:190,color:"#00ff88",delay:0.14});
+  showGesture("👌  CONFIRMED", "#44ff88");
+}
+
+function emitLaser(lms) {
+  const x1=lms[8].x*canvas.width, y1=lms[8].y*canvas.height;
+  const dx=(lms[8].x-lms[5].x)*canvas.width, dy=(lms[8].y-lms[5].y)*canvas.height;
+  const len=Math.hypot(dx,dy)||1;
+  const dist=Math.max(canvas.width,canvas.height)*2.5;
+  laserBeams.push({x1,y1,x2:x1+(dx/len)*dist,y2:y1+(dy/len)*dist,alpha:0.75,decay:0.1});
+}
+
+function handleGesture(lms,handIdx,ts) {
+  const gesture=classifyHand(lms);
+  const prev=gestureState[handIdx]||{gesture:"_",since:0,lastEffect:0};
+  if(gesture!==prev.gesture){
+    gestureState[handIdx]={gesture,since:ts,lastEffect:0};
+    switch(gesture){
+      case "peace":    spawnPeace(lms);    break;
+      case "thumbsup": spawnThumbsUp(lms); break;
+      case "rockon":   spawnRockOn(lms);   break;
+      case "open":     spawnShield(lms);   break;
+      case "ok":       spawnOK(lms);       break;
+    }
+  }
+  const gs=gestureState[handIdx];
+  if(gesture==="point" && ts-gs.lastEffect>90){ emitLaser(lms); gs.lastEffect=ts; }
+  if(gesture==="open"  && ts-gs.since>400 && ts-gs.lastEffect>650){ spawnShield(lms); gs.lastEffect=ts; }
+  if(gesture==="fist") runPunchCheck(lms,handIdx,ts);
+}
+
+// ─── EXPRESSION DETECTION ─────────────────────────────────────────────────────
+function detectExpression(lms) {
+  const mh=Math.abs(lms[14].y-lms[13].y);
+  const mw=Math.abs(lms[291].x-lms[61].x)+0.001;
+  const mar=mh/mw;
+  const lipMidY=(lms[13].y+lms[14].y)/2;
+  const cornerY=(lms[61].y+lms[291].y)/2;
+  const smileScore=lipMidY-cornerY;
+  const leftEAR=Math.abs(lms[159].y-lms[145].y)/(Math.abs(lms[133].x-lms[33].x)+0.001);
+  const rightEAR=Math.abs(lms[386].y-lms[374].y)/(Math.abs(lms[263].x-lms[362].x)+0.001);
+  const ear=(leftEAR+rightEAR)/2;
+  const browY=(lms[107].y+lms[66].y)/2;
+  const browGap=lms[159].y-browY;
+  if(mar>0.36&&ear>0.21)        return "surprised";
+  if(smileScore>0.013&&mar<0.32) return "happy";
+  if(smileScore<-0.011)          return "sad";
+  if(browGap<0.024&&ear<0.13)    return "angry";
+  if(ear<0.095)                  return "suspicious";
+  return "neutral";
+}
+
+// ─── DRAW EFFECTS ─────────────────────────────────────────────────────────────
+function hexRgb(h){ return [parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)]; }
+function toRgba(hex,a){ const [r,g,b]=hexRgb(hex); return `rgba(${r},${g},${b},${a.toFixed(3)})`; }
+
+function updateAndDrawEffects(dt) {
+  // Ambient spawning
+  ambientTimer+=dt;
+  if(ambientTimer>0.04){
+    ambientTimer=0;
+    if(currentMood==="sad"        && Math.random()<0.55) spawnRaindrop();
+    if(currentMood==="happy"      && Math.random()<0.28) spawnSparkle(Math.random()*canvas.width, canvas.height*(0.5+Math.random()*0.5));
+    if(currentMood==="angry"      && Math.random()<0.22) spawnEmber();
+    if(currentMood==="suspicious" && Math.random()<0.12) spawnMatrixChar();
+  }
+
+  // White flash
+  if(flashAlpha>0){
+    ctx.globalCompositeOperation="lighter";
+    ctx.fillStyle=`rgba(255,255,255,${flashAlpha.toFixed(3)})`;
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.globalCompositeOperation="source-over";
+    flashAlpha=Math.max(0,flashAlpha-dt*3.5);
+  }
+
+  // Expanding rings
+  for(let i=rings.length-1;i>=0;i--){
+    const rw=rings[i];
+    if(rw.delay){rw.delay-=dt;if(rw.delay>0)continue;}
+    rw.radius+=dt*rw.speed; rw.life-=dt*1.7;
+    if(rw.life<=0){rings.splice(i,1);continue;}
+    const al=Math.max(0,rw.life);
+    const hexM=rw.color.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i);
+    if(!hexM)continue;
+    const [r,g,b]=[parseInt(hexM[1],16),parseInt(hexM[2],16),parseInt(hexM[3],16)];
+    ctx.globalCompositeOperation="lighter";
+    ctx.beginPath(); ctx.arc(rw.x,rw.y,rw.radius,0,Math.PI*2);
+    ctx.strokeStyle=`rgba(${r},${g},${b},${(al*0.85).toFixed(3)})`;
+    ctx.lineWidth=3*al; ctx.stroke();
+    ctx.globalCompositeOperation="source-over";
+  }
+
+  // Shockwaves
+  for(let i=shockwaves.length-1;i>=0;i--){
+    const sw=shockwaves[i];
+    if(sw.delay){sw.delay-=dt;if(sw.delay>0)continue;}
+    sw.r+=dt*420; sw.life-=dt*1.8;
+    if(sw.life<=0){shockwaves.splice(i,1);continue;}
+    const al=Math.max(0,sw.life);
+    ctx.globalCompositeOperation="lighter";
+    ctx.beginPath(); ctx.arc(sw.x,sw.y,sw.r,0,Math.PI*2);
+    const grd=ctx.createRadialGradient(sw.x,sw.y,sw.r*0.85,sw.x,sw.y,sw.r);
+    grd.addColorStop(0,"rgba(255,255,255,0)");
+    grd.addColorStop(0.5,`rgba(255,255,255,${(al*0.7).toFixed(3)})`);
+    grd.addColorStop(1,"rgba(180,220,255,0)");
+    ctx.strokeStyle=grd; ctx.lineWidth=4*al; ctx.stroke();
+    ctx.globalCompositeOperation="source-over";
+  }
+
+  // Laser beams
+  for(let i=laserBeams.length-1;i>=0;i--){
+    const lb=laserBeams[i]; lb.alpha-=lb.decay;
+    if(lb.alpha<=0){laserBeams.splice(i,1);continue;}
+    ctx.globalCompositeOperation="lighter";
+    ctx.save();
+    ctx.shadowColor="#ff0000"; ctx.shadowBlur=14*lb.alpha;
+    ctx.beginPath(); ctx.moveTo(lb.x1,lb.y1); ctx.lineTo(lb.x2,lb.y2);
+    ctx.strokeStyle=`rgba(255,40,20,${(lb.alpha*0.85).toFixed(3)})`;
+    ctx.lineWidth=2.5*lb.alpha; ctx.stroke();
+    ctx.restore();
+    ctx.globalCompositeOperation="source-over";
+  }
+
+  // Text particles (matrix)
+  for(let i=textParticles.length-1;i>=0;i--){
+    const tp=textParticles[i]; tp.y+=tp.vy*dt; tp.life-=tp.decay;
+    if(tp.life<=0){textParticles.splice(i,1);continue;}
+    ctx.globalAlpha=Math.max(0,tp.life)*0.9;
+    ctx.fillStyle="#00ff44"; ctx.font="11px Courier New";
+    ctx.fillText(tp.char,tp.x,tp.y); ctx.globalAlpha=1;
+  }
+
+  // Particles
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    p.px=p.x; p.py=p.y;
+    p.x+=p.vx*dt; p.y+=p.vy*dt;
+    p.vx*=0.90; p.vy*=0.90;
+    p.life-=p.decay;
+    if(p.life<=0){particles.splice(i,1);continue;}
+    const al=Math.max(0,p.life);
+    ctx.globalCompositeOperation="lighter";
+    if(p.isRain){
+      ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p.x-p.vx*dt*4,p.y-p.vy*dt*4);
+      ctx.strokeStyle=`rgba(70,110,255,${(al*0.65).toFixed(3)})`;
+      ctx.lineWidth=p.size; ctx.stroke();
+    } else if(p.isSparkle){
+      ctx.beginPath(); ctx.arc(p.x,p.y,Math.max(0.3,p.size*al),0,Math.PI*2);
+      ctx.fillStyle=`rgba(255,200,50,${(al*0.9).toFixed(3)})`; ctx.fill();
+    } else if(p.isEmber){
+      ctx.beginPath(); ctx.arc(p.x,p.y,Math.max(0.3,p.size*(0.5+al*0.5)),0,Math.PI*2);
+      ctx.fillStyle=`rgba(255,${Math.floor(70+al*110)},0,${(al*0.85).toFixed(3)})`; ctx.fill();
+    } else if(p.isPeace){
+      ctx.beginPath(); ctx.arc(p.x,p.y,Math.max(0.3,p.size*al),0,Math.PI*2);
+      ctx.fillStyle=`rgba(70,255,100,${(al*0.9).toFixed(3)})`; ctx.fill();
+    } else if(p.isGold){
+      ctx.beginPath(); ctx.arc(p.x,p.y,Math.max(0.3,p.size*al),0,Math.PI*2);
+      ctx.fillStyle=`rgba(255,200,30,${(al*0.9).toFixed(3)})`; ctx.fill();
+    } else if(p.isLightning){
+      ctx.beginPath(); ctx.moveTo(p.px,p.py); ctx.lineTo(p.x,p.y);
+      ctx.strokeStyle=`rgba(210,180,255,${(al*0.95).toFixed(3)})`;
+      ctx.lineWidth=p.size*al*2; ctx.lineCap="round"; ctx.stroke();
+    } else if(p.isFlare){
+      const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.size*(1+(1-al)*2));
+      g.addColorStop(0,`rgba(255,255,255,${(al*0.9).toFixed(3)})`);
+      g.addColorStop(0.4,`rgba(200,230,255,${(al*0.4).toFixed(3)})`);
+      g.addColorStop(1,"rgba(150,200,255,0)");
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.size*(1+(1-al)),0,Math.PI*2);
+      ctx.fillStyle=g; ctx.fill();
+    } else if(p.isLine){
+      ctx.beginPath(); ctx.moveTo(p.px,p.py); ctx.lineTo(p.x,p.y);
+      ctx.strokeStyle=`rgba(255,255,255,${(al*0.85).toFixed(3)})`;
+      ctx.lineWidth=p.size*al; ctx.lineCap="round"; ctx.stroke();
+    } else if(p.isPunch){
+      ctx.beginPath(); ctx.arc(p.x,p.y,Math.max(0.5,p.size*al),0,Math.PI*2);
+      ctx.fillStyle=`rgba(255,255,255,${(al*0.9).toFixed(3)})`; ctx.fill();
+    }
+    ctx.globalCompositeOperation="source-over";
+  }
+}
+
+// ─── AUDIO OUTPUT ─────────────────────────────────────────────────────────────
+const OUT_SR=24000;
+let outCtx=null, nextPlayTime=0, isSpeaking=false, speakTimer=null;
+const activeSources=[];
+
+function initOutAudio(){ outCtx=new AudioContext({sampleRate:OUT_SR}); nextPlayTime=outCtx.currentTime; }
+function stopAllAudio(){
+  for(const s of activeSources){try{s.stop(0);}catch(_){}}
+  activeSources.length=0; nextPlayTime=outCtx?outCtx.currentTime:0;
+  clearTimeout(speakTimer); setSpeaking(false);
+}
+function schedulePCM(bytes){
+  if(spkMuted||!outCtx) return;
+  if(outCtx.state==="suspended") outCtx.resume();
+  if(bytes.byteLength<2) return;
+  const i16=new Int16Array(bytes.buffer,bytes.byteOffset,Math.floor(bytes.byteLength/2));
+  if(!i16.length) return;
+  const f32=new Float32Array(i16.length);
+  for(let i=0;i<i16.length;i++) f32[i]=i16[i]/32768;
+  const buf=outCtx.createBuffer(1,f32.length,OUT_SR);
+  buf.getChannelData(0).set(f32);
+  const src=outCtx.createBufferSource();
+  src.buffer=buf; src.connect(outCtx.destination);
+  activeSources.push(src);
+  src.onended=()=>{ const i=activeSources.indexOf(src); if(i>-1)activeSources.splice(i,1); };
+  if(nextPlayTime<outCtx.currentTime+0.005) nextPlayTime=outCtx.currentTime+0.05;
+  src.start(nextPlayTime); nextPlayTime+=buf.duration;
+  setSpeaking(true); clearTimeout(speakTimer);
+  speakTimer=setTimeout(()=>setSpeaking(false),800);
+}
+function setSpeaking(on){
+  if(isSpeaking===on) return; isSpeaking=on;
+  if(on){ setStatus("speaking"); waveform.classList.add("active"); }
+  else  { waveform.classList.remove("active"); setStatus(micMuted?"standby":"listening"); }
+}
+
+// ─── AUDIO INPUT ──────────────────────────────────────────────────────────────
+const WORKLET_CODE=`
+const T=16000,C=1600;
 class MicProcessor extends AudioWorkletProcessor {
-  constructor() { super(); this._buf = []; this._chunk = 1600; }
-  process(inputs) {
-    const ch = inputs[0]?.[0];
-    if (!ch) return true;
-    for (let i = 0; i < ch.length; i++) {
-      this._buf.push(ch[i]);
-      if (this._buf.length >= this._chunk) {
-        const i16 = new Int16Array(this._chunk);
-        for (let j = 0; j < this._chunk; j++)
-          i16[j] = Math.max(-32768, Math.min(32767, Math.round(this._buf[j] * 32767)));
-        this.port.postMessage(i16.buffer, [i16.buffer]);
-        this._buf = [];
+  constructor(){super();this._r=sampleRate/T;this._p=0;this._b=[];}
+  process(inputs){
+    const ch=inputs[0]?.[0]; if(!ch)return true;
+    for(let i=0;i<ch.length;i++){
+      this._p+=1;
+      if(this._p>=this._r){
+        this._p-=this._r; this._b.push(ch[i]);
+        if(this._b.length>=C){
+          const i16=new Int16Array(C);
+          for(let j=0;j<C;j++)i16[j]=Math.max(-32768,Math.min(32767,Math.round(this._b[j]*32767)));
+          this.port.postMessage(i16.buffer,[i16.buffer]); this._b=[];
+        }
       }
     }
     return true;
   }
 }
-registerProcessor('mic-processor', MicProcessor);
+registerProcessor('mic-processor',MicProcessor);
 `;
 
-async function startMic() {
+async function startMic(){
   let stream;
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      audio: { channelCount: 1, sampleRate: 16000, echoCancellation: true, noiseSuppression: true }
-    });
-  } catch (e) { console.error("[mic]", e); return; }
-
-  const micCtx = new AudioContext({ sampleRate: 16000 });
-  const url = URL.createObjectURL(new Blob([WORKLET_CODE], { type: "application/javascript" }));
-  await micCtx.audioWorklet.addModule(url);
-  URL.revokeObjectURL(url);
-
-  const src  = micCtx.createMediaStreamSource(stream);
-  const node = new AudioWorkletNode(micCtx, "mic-processor");
-  node.port.onmessage = (e) => {
-    if (!micMuted && liveWs?.readyState === WebSocket.OPEN)
-      liveWs.send(e.data);
+  try{ stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true}}); }
+  catch(e){ console.error("[mic]",e); return; }
+  const micCtx=new AudioContext();
+  const url=URL.createObjectURL(new Blob([WORKLET_CODE],{type:"application/javascript"}));
+  await micCtx.audioWorklet.addModule(url); URL.revokeObjectURL(url);
+  const src=micCtx.createMediaStreamSource(stream);
+  const node=new AudioWorkletNode(micCtx,"mic-processor");
+  const micLevelWrap=document.getElementById("mic-level-wrap");
+  const micLevelFill=document.getElementById("mic-level-fill");
+  let chunksSent=0;
+  node.port.onmessage=(e)=>{
+    const i16=new Int16Array(e.data); let sum=0;
+    for(let i=0;i<i16.length;i++) sum+=i16[i]*i16[i];
+    const rms=Math.sqrt(sum/i16.length)/32768;
+    const pct=Math.min(100,rms*400);
+    micLevelFill.style.width=pct+"%";
+    micLevelFill.style.background=pct>20?"#00ff88":"#ff4444";
+    micLevelWrap.classList.toggle("active",pct>5);
+    if(!micMuted&&liveWs?.readyState===WebSocket.OPEN){ liveWs.send(e.data); chunksSent++; }
   };
   src.connect(node);
 }
 
-// ── WebSocket ──────────────────────────────────────────────────────────────
-function connectLive() {
-  const proto = location.protocol === "https:" ? "wss" : "ws";
-  liveWs = new WebSocket(`${proto}://${location.host}/ws/live`);
-  liveWs.binaryType = "arraybuffer";
+// ─── INTEL PANEL ──────────────────────────────────────────────────────────────
+const intelPanel   = document.getElementById("intel-panel");
+const intelStatus  = document.getElementById("intel-status");
+const intelQuery   = document.getElementById("intel-query");
+const intelResults = document.getElementById("intel-results");
+const intelViewBtn = document.getElementById("intel-view-btn");
+let   currentTopUrl = "";
 
-  liveWs.onopen = () => {
-    connDot.className = "live";
-    setStatus("listening");
-  };
-
-  liveWs.onmessage = (e) => {
-    if (e.data instanceof ArrayBuffer) {
-      schedulePCM(new Uint8Array(e.data));
-    }
-    // ignore any stray text frames
-  };
-
-  liveWs.onclose = () => {
-    connDot.className = "error";
-    setStatus("standby");
-    setTimeout(connectLive, 3000);
-  };
-
-  liveWs.onerror = (err) => console.error("[ws]", err);
+function showSearching(query){
+  intelQuery.textContent=query.toUpperCase();
+  intelStatus.textContent="SEARCHING"; intelStatus.className="searching";
+  intelResults.innerHTML='<div class="result-card loading">\u25CB Querying open sources\u2026</div>';
+  intelPanel.classList.add("open");
+  intelViewBtn.classList.remove("show"); currentTopUrl="";
 }
 
-// ── Status ─────────────────────────────────────────────────────────────────
-function setStatus(state) {
-  statusBadge.className = state;
-  badgeText.textContent =
-    state === "listening" ? "LISTENING" :
-    state === "speaking"  ? "SPEAKING"  : "STANDBY";
-}
-
-// ── Boot ───────────────────────────────────────────────────────────────────
-async function boot() {
-  startBtn.disabled = true;
-
-  const fail = (msg) => {
-    loadStatus.style.color = "#ff4444";
-    loadStatus.textContent = msg;
-    startBtn.disabled = false;
-  };
-
-  loadStatus.style.color = "";
-  loadStatus.textContent = "Requesting camera access...";
-
-  if (!navigator.mediaDevices?.getUserMedia) {
-    fail("Camera API unavailable -- use Chrome at http://localhost:8000");
-    return;
+function showResults(query,results,topUrl){
+  intelStatus.textContent="INTEL"; intelStatus.className="";
+  intelQuery.textContent=query.toUpperCase();
+  intelResults.innerHTML="";
+  currentTopUrl=topUrl||(results[0]?.url)||"";
+  if(currentTopUrl){
+    intelViewBtn.classList.add("show");
+    setTimeout(()=>openSiteViewer(currentTopUrl),900);
   }
+  if(!results||results.length===0){ intelResults.innerHTML='<div class="result-card loading">NO RESULTS</div>'; return; }
+  results.forEach((r,i)=>{
+    const card=document.createElement("div"); card.className="result-card"+(i===0?" active":"");
+    const title=document.createElement("a"); title.className="result-title";
+    title.href=r.url||"#"; title.target="_blank"; title.rel="noopener"; title.textContent=r.title||"(no title)";
+    const urlEl=document.createElement("div"); urlEl.className="result-url"; urlEl.textContent=r.url||"";
+    const snip=document.createElement("div"); snip.className="result-snippet"; snip.textContent=r.snippet||"";
+    card.appendChild(title); if(r.url)card.appendChild(urlEl); if(r.snippet)card.appendChild(snip);
+    card.addEventListener("click",()=>{ if(r.url){ openSiteViewer(r.url); document.querySelectorAll(".result-card").forEach(c=>c.classList.remove("active")); card.classList.add("active"); } });
+    intelResults.appendChild(card);
+  });
+}
 
+intelViewBtn.onclick=()=>{ if(currentTopUrl) openSiteViewer(currentTopUrl); };
+document.getElementById("intel-close").onclick=()=>intelPanel.classList.remove("open");
+
+// ─── SITE VIEWER ──────────────────────────────────────────────────────────────
+const siteViewer  = document.getElementById("site-viewer");
+const svFrame     = document.getElementById("sv-frame");
+const svBlocked   = document.getElementById("sv-blocked");
+const svUrlEl     = document.getElementById("sv-url");
+const svExt       = document.getElementById("sv-ext");
+const svBlockLink = document.getElementById("sv-blocked-link");
+let   svCheckTimer = null;
+
+function openSiteViewer(url){
+  if(!url) return;
+  svUrlEl.textContent=url; svExt.href=url; svBlockLink.href=url;
+  svBlocked.classList.remove("show"); svFrame.style.display="block";
+  siteViewer.classList.add("open");
+  svFrame.src=url;
+  clearTimeout(svCheckTimer);
+  svCheckTimer=setTimeout(()=>{
+    try{
+      const doc=svFrame.contentDocument;
+      if(!doc||!doc.body||doc.body.innerHTML.trim()==="") showSiteBlocked();
+    } catch(_){ showSiteBlocked(); }
+  }, 4500);
+}
+
+function showSiteBlocked(){ svFrame.style.display="none"; svBlocked.classList.add("show"); }
+
+document.getElementById("sv-close").onclick=()=>{ siteViewer.classList.remove("open"); svFrame.src="about:blank"; clearTimeout(svCheckTimer); };
+document.getElementById("sv-back").onclick=()=>{ siteViewer.classList.remove("open"); svFrame.src="about:blank"; clearTimeout(svCheckTimer); };
+svFrame.onerror=()=>showSiteBlocked();
+
+// ─── WEBSOCKET ────────────────────────────────────────────────────────────────
+function handleCmd(msg){
+  if(msg.type==="stop_audio")   stopAllAudio();
+  else if(msg.type==="searching"){ stopAllAudio(); showSearching(msg.query); }
+  else if(msg.type==="results")   showResults(msg.query,msg.results,msg.top_url||"");
+}
+
+function connectLive(){
+  const proto=location.protocol==="https:"?"wss":"ws";
+  liveWs=new WebSocket(`${proto}://${location.host}/ws/live`);
+  liveWs.binaryType="arraybuffer";
+  liveWs.onopen=()=>{ connDot.className="live"; setStatus("listening"); };
+  liveWs.onmessage=(e)=>{
+    if(e.data instanceof ArrayBuffer) schedulePCM(new Uint8Array(e.data));
+    else if(typeof e.data==="string"){ try{ handleCmd(JSON.parse(e.data)); }catch(_){} }
+  };
+  liveWs.onclose=()=>{ connDot.className="error"; setStatus("standby"); setTimeout(connectLive,3000); };
+  liveWs.onerror=(err)=>console.error("[ws]",err);
+}
+
+// ─── STATUS ───────────────────────────────────────────────────────────────────
+function setStatus(state){
+  statusBadge.className=state;
+  badgeText.textContent=state==="listening"?"LISTENING":state==="speaking"?"SPEAKING":"STANDBY";
+}
+
+// ─── BOOT ─────────────────────────────────────────────────────────────────────
+async function boot(){
+  startBtn.disabled=true;
+  const fail=(msg)=>{ loadStatus.style.color="#ff4444"; loadStatus.textContent=msg; startBtn.disabled=false; };
+  loadStatus.style.color=""; loadStatus.textContent="Requesting camera access...";
+  if(!navigator.mediaDevices?.getUserMedia){ fail("Camera API unavailable — use Chrome at http://localhost:8000"); return; }
   let stream;
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
-      audio: false
-    });
-  } catch (e) { fail("Camera error: " + e.message); return; }
-
-  video.srcObject = stream;
-  try { await video.play(); } catch (e) { fail("Video error: " + e.message); return; }
-
-  loadStatus.textContent = "Loading AI vision models...";
-  try {
-    const wasmUrl = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm";
-    const vision  = await FilesetResolver.forVisionTasks(wasmUrl);
-    [faceLandmarker, handLandmarker] = await Promise.all([
-      FaceLandmarker.createFromOptions(vision, {
-        baseOptions: {
-          modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
-          delegate: "GPU"
-        },
-        runningMode: "VIDEO", numFaces: 4,
-        minFaceDetectionConfidence: 0.5, minFacePresenceConfidence: 0.5, minTrackingConfidence: 0.5,
+  try{ stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"user",width:{ideal:1280},height:{ideal:720}},audio:false}); }
+  catch(e){ fail("Camera error: "+e.message); return; }
+  video.srcObject=stream;
+  try{ await video.play(); } catch(e){ fail("Video error: "+e.message); return; }
+  loadStatus.textContent="Loading AI vision models...";
+  try{
+    const wasmUrl="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm";
+    const vision=await FilesetResolver.forVisionTasks(wasmUrl);
+    [faceLandmarker,handLandmarker]=await Promise.all([
+      FaceLandmarker.createFromOptions(vision,{
+        baseOptions:{ modelAssetPath:"https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task", delegate:"GPU" },
+        runningMode:"VIDEO", numFaces:4, minFaceDetectionConfidence:0.5, minFacePresenceConfidence:0.5, minTrackingConfidence:0.5,
       }),
-      HandLandmarker.createFromOptions(vision, {
-        baseOptions: {
-          modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-          delegate: "GPU"
-        },
-        runningMode: "VIDEO", numHands: 4,
-        minHandDetectionConfidence: 0.5, minHandPresenceConfidence: 0.5, minTrackingConfidence: 0.5,
+      HandLandmarker.createFromOptions(vision,{
+        baseOptions:{ modelAssetPath:"https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task", delegate:"GPU" },
+        runningMode:"VIDEO", numHands:4, minHandDetectionConfidence:0.5, minHandPresenceConfidence:0.5, minTrackingConfidence:0.5,
       }),
     ]);
-  } catch (e) { fail("Model load failed: " + e.message); return; }
-  drawingUtils = new DrawingUtils(ctx);
-
-  splash.style.display = "none";
-  micBtn.classList.add("show");
-  spkBtn.classList.add("show");
-
-  initOutAudio();
-  await outCtx.resume();
-  connectLive();
-  await startMic();
-
+  } catch(e){ fail("Model load failed: "+e.message); return; }
+  drawingUtils=new DrawingUtils(ctx);
+  splash.style.display="none";
+  micBtn.classList.add("show"); spkBtn.classList.add("show");
+  initOutAudio(); await outCtx.resume();
+  connectLive(); await startMic();
   requestAnimationFrame(renderLoop);
 }
 
-// ── Render loop ────────────────────────────────────────────────────────────
-function renderLoop() {
-  if (video.readyState < 2) { requestAnimationFrame(renderLoop); return; }
-  if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
-    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+// ─── RENDER LOOP ──────────────────────────────────────────────────────────────
+function renderLoop(){
+  if(video.readyState<2){ requestAnimationFrame(renderLoop); return; }
+  if(canvas.width!==video.videoWidth||canvas.height!==video.videoHeight){
+    canvas.width=video.videoWidth; canvas.height=video.videoHeight;
   }
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  const ts=performance.now();
+  const dt=lastRenderTs?Math.min((ts-lastRenderTs)/1000,0.05):0.016;
+  lastRenderTs=ts;
 
-  const ts = performance.now();
-  latestFaceResult = faceLandmarker.detectForVideo(video, ts);
-  latestHandResult = handLandmarker.detectForVideo(video, ts);
+  latestFaceResult=faceLandmarker.detectForVideo(video,ts);
+  latestHandResult=handLandmarker.detectForVideo(video,ts);
 
-  for (const lms of latestFaceResult.faceLandmarks) {
-    drawingUtils.drawConnectors(lms, FaceLandmarker.FACE_LANDMARKS_TESSELATION,
-      { color: "#FFFFFF07", lineWidth: 0.3 });
-    drawingUtils.drawConnectors(lms, FaceLandmarker.FACE_LANDMARKS_FACE_OVAL,
-      { color: "#ffffff18", lineWidth: 1 });
-    drawingUtils.drawConnectors(lms, FaceLandmarker.FACE_LANDMARKS_LEFT_EYE,
-      { color: "#00C8FF", lineWidth: 1.2 });
-    drawingUtils.drawConnectors(lms, FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE,
-      { color: "#00C8FF", lineWidth: 1.2 });
-    drawingUtils.drawConnectors(lms, FaceLandmarker.FACE_LANDMARKS_LIPS,
-      { color: "#FF4466", lineWidth: 1.5 });
-    drawingUtils.drawConnectors(lms, FaceLandmarker.FACE_LANDMARKS_LEFT_EYEBROW,
-      { color: "#ffcc0066", lineWidth: 1 });
-    drawingUtils.drawConnectors(lms, FaceLandmarker.FACE_LANDMARKS_RIGHT_EYEBROW,
-      { color: "#ffcc0066", lineWidth: 1 });
-  }
-  for (const lms of latestHandResult.landmarks) {
-    drawingUtils.drawConnectors(lms, HandLandmarker.HAND_CONNECTIONS,
-      { color: "#00FF5555", lineWidth: 2 });
-    drawingUtils.drawLandmarks(lms, { radius: 3, color: "#00CCFF", fillColor: "#00CCFF33" });
+  // Expression → mood
+  if(latestFaceResult.faceLandmarks.length>0){
+    tickMood(detectExpression(latestFaceResult.faceLandmarks[0]));
   }
 
-  faceCount.textContent = latestFaceResult.faceLandmarks.length;
-  handCount.textContent = latestHandResult.landmarks.length;
+  // Gesture detection
+  latestHandResult.landmarks.forEach((lms,idx)=>handleGesture(lms,idx,ts));
 
+  // Draw face landmarks with mood-blended palette
+  for(const lms of latestFaceResult.faceLandmarks){
+    drawingUtils.drawConnectors(lms,FaceLandmarker.FACE_LANDMARKS_TESSELATION, {color:activePalette.mesh,lineWidth:0.3});
+    drawingUtils.drawConnectors(lms,FaceLandmarker.FACE_LANDMARKS_FACE_OVAL,   {color:activePalette.oval,lineWidth:1});
+    drawingUtils.drawConnectors(lms,FaceLandmarker.FACE_LANDMARKS_LEFT_EYE,    {color:activePalette.eye, lineWidth:1.2});
+    drawingUtils.drawConnectors(lms,FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE,   {color:activePalette.eye, lineWidth:1.2});
+    drawingUtils.drawConnectors(lms,FaceLandmarker.FACE_LANDMARKS_LIPS,        {color:activePalette.lip, lineWidth:1.5});
+    drawingUtils.drawConnectors(lms,FaceLandmarker.FACE_LANDMARKS_LEFT_EYEBROW, {color:activePalette.brow,lineWidth:1});
+    drawingUtils.drawConnectors(lms,FaceLandmarker.FACE_LANDMARKS_RIGHT_EYEBROW,{color:activePalette.brow,lineWidth:1});
+  }
+  for(const lms of latestHandResult.landmarks){
+    drawingUtils.drawConnectors(lms,HandLandmarker.HAND_CONNECTIONS,{color:"#00FF5555",lineWidth:2});
+    drawingUtils.drawLandmarks(lms,{radius:3,color:"#00CCFF",fillColor:"#00CCFF33"});
+  }
+
+  updateAndDrawEffects(dt);
+
+  faceCountEl.textContent=latestFaceResult.faceLandmarks.length;
+  handCountEl.textContent=latestHandResult.landmarks.length;
   requestAnimationFrame(renderLoop);
 }
 
-// ── Buttons ────────────────────────────────────────────────────────────────
-micBtn.onclick = () => {
-  micMuted = !micMuted;
-  micBtn.innerHTML = micMuted ? "&#x1F507;" : "&#x1F399;";
-  micBtn.classList.toggle("muted", micMuted);
-  if (!isSpeaking) setStatus(micMuted ? "standby" : "listening");
+// ─── BUTTONS ──────────────────────────────────────────────────────────────────
+micBtn.onclick=()=>{
+  micMuted=!micMuted;
+  micBtn.innerHTML=micMuted?"&#x1F507;":"&#x1F399;";
+  micBtn.classList.toggle("muted",micMuted);
+  if(!isSpeaking) setStatus(micMuted?"standby":"listening");
 };
-
-spkBtn.onclick = () => {
-  spkMuted = !spkMuted;
-  spkBtn.innerHTML = spkMuted ? "&#x1F507;" : "&#x1F50A;";
+spkBtn.onclick=()=>{
+  spkMuted=!spkMuted;
+  spkBtn.innerHTML=spkMuted?"&#x1F507;":"&#x1F50A;";
 };
-
-startBtn.addEventListener("click", boot);
+startBtn.addEventListener("click",boot);
 </script>
 </body>
 </html>
