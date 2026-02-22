@@ -15,18 +15,16 @@
 
     /* HEADER */
     #header {
-      display: flex; align-items: center; justify-content: space-between;
+      display: flex; align-items: center; gap: 12px;
       padding: 8px 20px; background: rgba(0,0,0,0.9);
       border-bottom: 1px solid #111; z-index: 10; flex-shrink: 0;
     }
-    #header-left { display: flex; align-items: center; gap: 12px; }
-    #header h1 { font-size: 11px; letter-spacing: 6px; color: #fff; text-transform: uppercase; }
-    #header-sub { font-size: 9px; color: #333; letter-spacing: 3px; }
     #conn-dot { width: 7px; height: 7px; border-radius: 50%; background: #222; flex-shrink: 0; }
     #conn-dot.live  { background: #00ff88; box-shadow: 0 0 8px #00ff88; animation: pulsed 2s infinite; }
     #conn-dot.error { background: #ff3366; box-shadow: 0 0 8px #ff3366; }
     @keyframes pulsed { 0%,100%{opacity:1} 50%{opacity:.3} }
-    #snap-label { font-size: 9px; color: #2a2a2a; letter-spacing: 2px; }
+    #header h1 { font-size: 11px; letter-spacing: 6px; color: #fff; text-transform: uppercase; }
+    #header-sub { font-size: 9px; color: #333; letter-spacing: 3px; }
 
     /* SCENE */
     #scene { position: relative; flex: 1; overflow: hidden; }
@@ -58,8 +56,7 @@
       background: rgba(0,0,0,0.75); border: 1px solid #1a1a1a;
       border-radius: 20px; padding: 5px 14px;
       font-size: 9px; letter-spacing: 3px; text-transform: uppercase;
-      transition: border-color 0.3s, color 0.3s;
-      color: #444;
+      transition: border-color 0.3s, color 0.3s; color: #444;
     }
     #status-badge.listening { border-color: #ff444477; color: #ff6666; }
     #status-badge.listening .bdot { background: #ff4444; box-shadow: 0 0 6px #ff4444; animation: pulsed .5s infinite; }
@@ -67,59 +64,27 @@
     #status-badge.speaking  .bdot { background: #4499ff; box-shadow: 0 0 6px #4499ff; animation: pulsed .4s infinite; }
     #status-badge.standby   { border-color: #222; color: #333; }
     #status-badge.standby   .bdot { background: #333; }
-    .bdot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; transition: background .3s; }
+    .bdot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
 
-    /* SNAPSHOT BAR */
-    #snap-bar {
-      position: absolute; bottom: 0; left: 0; height: 2px;
-      background: linear-gradient(90deg, #ff6600, #ffcc00);
-      transition: width 0.5s linear; z-index: 11; width: 0%;
+    /* WAVEFORM (shown when AI is speaking) */
+    #waveform {
+      position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
+      z-index: 10; display: none; align-items: center; gap: 3px; height: 28px;
     }
-
-    /* SNAPSHOT FLASH */
-    #snap-flash {
-      position: absolute; top: 14px; right: 110px; z-index: 12;
-      font-size: 8px; letter-spacing: 2px; color: #ff660088;
-      text-transform: uppercase; opacity: 0; transition: opacity .3s;
-    }
-    #snap-flash.show { opacity: 1; }
-
-    /* PANEL */
-    #panel {
-      position: absolute; bottom: 0; left: 0; right: 0; z-index: 10;
-      background: linear-gradient(to top, rgba(0,0,0,.97) 55%, transparent);
-      padding: 50px 20px 16px;
-    }
-
-    /* WAVEFORM */
-    #waveform { display: none; align-items: center; gap: 3px; margin-bottom: 10px; height: 22px; }
     #waveform.active { display: flex; }
-    .wbar {
-      width: 3px; background: #4499ff; border-radius: 2px;
-      animation: wv .8s ease-in-out infinite;
-    }
-    .wbar:nth-child(1){animation-delay:0s}   .wbar:nth-child(2){animation-delay:.1s}
-    .wbar:nth-child(3){animation-delay:.2s}  .wbar:nth-child(4){animation-delay:.3s}
-    .wbar:nth-child(5){animation-delay:.4s}  .wbar:nth-child(6){animation-delay:.3s}
-    .wbar:nth-child(7){animation-delay:.2s}  .wbar:nth-child(8){animation-delay:.1s}
-    @keyframes wv { 0%,100%{height:4px} 50%{height:20px} }
+    .wbar { width: 3px; background: #4499ff88; border-radius: 2px; animation: wv .8s ease-in-out infinite; }
+    .wbar:nth-child(1){animation-delay:0s}  .wbar:nth-child(2){animation-delay:.1s}
+    .wbar:nth-child(3){animation-delay:.2s} .wbar:nth-child(4){animation-delay:.3s}
+    .wbar:nth-child(5){animation-delay:.4s} .wbar:nth-child(6){animation-delay:.3s}
+    .wbar:nth-child(7){animation-delay:.2s} .wbar:nth-child(8){animation-delay:.1s}
+    @keyframes wv { 0%,100%{height:4px} 50%{height:24px} }
 
-    /* AI TEXT BOX */
-    #ai-box {
-      background: rgba(0,20,60,.4); border: 1px solid rgba(68,153,255,.15);
-      border-radius: 6px; padding: 12px 16px; margin-bottom: 10px;
-      min-height: 50px; display: flex; align-items: flex-start; gap: 10px;
+    /* META (bottom left) */
+    #meta {
+      position: absolute; bottom: 14px; left: 18px; z-index: 10;
+      display: flex; gap: 12px; font-size: 10px; color: #2a2a2a;
     }
-    #ai-icon { font-size: 16px; flex-shrink: 0; margin-top: 2px; }
-    #ai-text { font-size: 14px; color: #88bbee; line-height: 1.55; font-style: italic; flex: 1; }
-    #ai-text.typing::after { content: "\258B"; animation: blink .55s infinite; color: #4499ff; }
-    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
-
-    /* META */
-    #meta { display: flex; gap: 14px; font-size: 10px; color: #333; flex-wrap: wrap; align-items: center; }
-    #meta span { display: flex; align-items: center; gap: 4px; }
-    #meta strong { color: #555; }
-    .msep { color: #1a1a1a; }
+    #meta strong { color: #444; }
 
     /* BUTTONS */
     .ctrl-btn {
@@ -161,12 +126,10 @@
 <body>
 
 <div id="header">
-  <div id="header-left">
-    <div id="conn-dot"></div>
-    <div>
-      <h1>&#x2622; PALANTIR</h1>
-      <div id="header-sub">UNIT 8200 &nbsp;&middot;&nbsp; MOSSAD &nbsp;&middot;&nbsp; IDF &nbsp;&middot;&nbsp; SURVEILLANCE ACTIVE</div>
-    </div>
+  <div id="conn-dot"></div>
+  <div>
+    <h1>&#x2622; PALANTIR</h1>
+    <div id="header-sub">UNIT 8200 &nbsp;&middot;&nbsp; MOSSAD &nbsp;&middot;&nbsp; IDF &nbsp;&middot;&nbsp; SURVEILLANCE ACTIVE</div>
   </div>
 </div>
 
@@ -184,30 +147,21 @@
     <div class="bdot"></div>
     <span id="badge-text">STANDBY</span>
   </div>
+
+  <div id="waveform">
+    <div class="wbar"></div><div class="wbar"></div>
+    <div class="wbar"></div><div class="wbar"></div>
+    <div class="wbar"></div><div class="wbar"></div>
+    <div class="wbar"></div><div class="wbar"></div>
+  </div>
+
   <button id="mic-btn" class="ctrl-btn" title="Toggle mic">&#x1F399;</button>
   <button id="spk-btn" class="ctrl-btn" title="Toggle speaker">&#x1F50A;</button>
 
-  <div id="panel">
-    <div id="waveform">
-      <div class="wbar"></div><div class="wbar"></div>
-      <div class="wbar"></div><div class="wbar"></div>
-      <div class="wbar"></div><div class="wbar"></div>
-      <div class="wbar"></div><div class="wbar"></div>
-    </div>
-    <div id="ai-box">
-      <span id="ai-icon">&#x1F9FF;</span>
-      <div id="ai-text">Establishing secure channel with Mossad relay&hellip;</div>
-    </div>
-    <div id="meta">
-      <span>&#x1F464; <strong id="face-count">0</strong> faces</span>
-      <span class="msep">|</span>
-      <span>&#x270B; <strong id="hand-count">0</strong> hands</span>
-      <span class="msep">|</span>
-      <span>&#x1F4E1; <strong id="vibe-text">scanning</strong></span>
-    </div>
+  <div id="meta">
+    <span>&#x1F464; <strong id="face-count">0</strong></span>
+    <span>&#x270B; <strong id="hand-count">0</strong></span>
   </div>
-
-
 </div>
 
 <div id="splash">
@@ -230,18 +184,15 @@ import {
   FilesetResolver, DrawingUtils
 } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
 
-// DOM refs
 const video       = document.getElementById("video");
 const canvas      = document.getElementById("canvas");
 const ctx         = canvas.getContext("2d");
 const connDot     = document.getElementById("conn-dot");
 const statusBadge = document.getElementById("status-badge");
 const badgeText   = document.getElementById("badge-text");
-const aiText      = document.getElementById("ai-text");
+const waveform    = document.getElementById("waveform");
 const faceCount   = document.getElementById("face-count");
 const handCount   = document.getElementById("hand-count");
-const vibeText    = document.getElementById("vibe-text");
-const waveform    = document.getElementById("waveform");
 const splash      = document.getElementById("splash");
 const startBtn    = document.getElementById("start-btn");
 const loadStatus  = document.getElementById("load-status");
@@ -255,8 +206,8 @@ let micMuted = false;
 let spkMuted = false;
 let liveWs   = null;
 
-// ---- Playback audio (24kHz PCM from Gemini) ------------------------------
-const OUT_SR     = 24000;
+// ── Playback: 24kHz PCM from Gemini ───────────────────────────────────────
+const OUT_SR = 24000;
 let outCtx       = null;
 let nextPlayTime = 0;
 let isSpeaking   = false;
@@ -267,20 +218,12 @@ function initOutAudio() {
   nextPlayTime = outCtx.currentTime;
 }
 
-let totalAudioBytes = 0;
-
 function schedulePCM(bytes) {
-  if (spkMuted) return;
-  if (!outCtx) return;
-  // Resume if browser suspended it (common after tab switch)
+  if (spkMuted || !outCtx) return;
   if (outCtx.state === "suspended") outCtx.resume();
-
-  totalAudioBytes += bytes.length;
-  console.log("[audio] chunk", bytes.length, "bytes | total", totalAudioBytes, "| ctx", outCtx.state);
-
-  if (bytes.length < 2) return;
+  if (bytes.byteLength < 2) return;
   const i16 = new Int16Array(bytes.buffer, bytes.byteOffset, Math.floor(bytes.byteLength / 2));
-  if (i16.length === 0) return;
+  if (!i16.length) return;
   const f32 = new Float32Array(i16.length);
   for (let i = 0; i < i16.length; i++) f32[i] = i16[i] / 32768;
   const buf = outCtx.createBuffer(1, f32.length, OUT_SR);
@@ -288,11 +231,9 @@ function schedulePCM(bytes) {
   const src = outCtx.createBufferSource();
   src.buffer = buf;
   src.connect(outCtx.destination);
-  // Reset queue if we've fallen too far behind
   if (nextPlayTime < outCtx.currentTime) nextPlayTime = outCtx.currentTime;
-  const when = nextPlayTime + 0.01;
-  src.start(when);
-  nextPlayTime = when + buf.duration;
+  src.start(nextPlayTime + 0.01);
+  nextPlayTime += 0.01 + buf.duration;
   setSpeaking(true);
   clearTimeout(speakTimer);
   speakTimer = setTimeout(() => setSpeaking(false), 800);
@@ -310,12 +251,12 @@ function setSpeaking(on) {
   }
 }
 
-// ---- Microphone capture -> 16kHz PCM16 -----------------------------------
+// ── Microphone: 16kHz PCM16 via AudioWorklet ──────────────────────────────
 const WORKLET_CODE = `
 class MicProcessor extends AudioWorkletProcessor {
   constructor() { super(); this._buf = []; this._chunk = 1600; }
   process(inputs) {
-    const ch = inputs[0] && inputs[0][0];
+    const ch = inputs[0]?.[0];
     if (!ch) return true;
     for (let i = 0; i < ch.length; i++) {
       this._buf.push(ch[i]);
@@ -333,33 +274,29 @@ class MicProcessor extends AudioWorkletProcessor {
 registerProcessor('mic-processor', MicProcessor);
 `;
 
-let micCtx = null;
-
 async function startMic() {
-  let micStream;
+  let stream;
   try {
-    micStream = await navigator.mediaDevices.getUserMedia({
-      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, sampleRate: 16000, echoCancellation: true, noiseSuppression: true }
     });
-  } catch (e) {
-    console.error("[mic]", e); return;
-  }
-  micCtx = new AudioContext({ sampleRate: 16000 });
-  const blob = new Blob([WORKLET_CODE], { type: "application/javascript" });
-  const url  = URL.createObjectURL(blob);
+  } catch (e) { console.error("[mic]", e); return; }
+
+  const micCtx = new AudioContext({ sampleRate: 16000 });
+  const url = URL.createObjectURL(new Blob([WORKLET_CODE], { type: "application/javascript" }));
   await micCtx.audioWorklet.addModule(url);
   URL.revokeObjectURL(url);
-  const src  = micCtx.createMediaStreamSource(micStream);
+
+  const src  = micCtx.createMediaStreamSource(stream);
   const node = new AudioWorkletNode(micCtx, "mic-processor");
   node.port.onmessage = (e) => {
-    if (!micMuted && liveWs && liveWs.readyState === WebSocket.OPEN)
+    if (!micMuted && liveWs?.readyState === WebSocket.OPEN)
       liveWs.send(e.data);
   };
   src.connect(node);
-  micBtn.classList.remove("muted");
 }
 
-// ---- Live WebSocket -------------------------------------------------------
+// ── WebSocket ──────────────────────────────────────────────────────────────
 function connectLive() {
   const proto = location.protocol === "https:" ? "wss" : "ws";
   liveWs = new WebSocket(`${proto}://${location.host}/ws/live`);
@@ -367,36 +304,14 @@ function connectLive() {
 
   liveWs.onopen = () => {
     connDot.className = "live";
-    setStatus(micMuted ? "standby" : "listening");
-    typewrite(aiText,
-      "PALANTIR online. Mossad relay established. " +
-      "Palantir AIP is now ingesting your biometrics. " +
-      "You may speak -- Unit 8200 is already judging you."
-    );
+    setStatus("listening");
   };
 
   liveWs.onmessage = (e) => {
-    if (typeof e.data === "string") {
-      if (e.data.startsWith("TEXT:")) {
-        // Strip basic markdown (**bold**, *italic*, # headings, bullet dashes)
-        const txt = e.data.slice(5).trim()
-          .replace(/\*\*([^*]+)\*\*/g, "$1")
-          .replace(/\*([^*]+)\*/g, "$1")
-          .replace(/^#{1,3}\s+/gm, "")
-          .replace(/^[-*]\s+/gm, "")
-          .trim();
-        if (txt) typewrite(aiText, txt);
-      } else if (e.data.startsWith("ERROR:")) {
-        typewrite(aiText, "[SYSTEM ERROR] " + e.data.slice(6));
-        connDot.className = "error";
-      }
-      // END = turn complete
-    } else {
-      // Binary = PCM audio from Gemini
-      const arr = e.data instanceof ArrayBuffer ? new Uint8Array(e.data) : e.data;
-      console.log("[ws] binary msg", arr.length, "bytes");
-      schedulePCM(arr);
+    if (e.data instanceof ArrayBuffer) {
+      schedulePCM(new Uint8Array(e.data));
     }
+    // ignore any stray text frames
   };
 
   liveWs.onclose = () => {
@@ -405,10 +320,10 @@ function connectLive() {
     setTimeout(connectLive, 3000);
   };
 
-  liveWs.onerror = (err) => console.error("[live ws]", err);
+  liveWs.onerror = (err) => console.error("[ws]", err);
 }
 
-// ---- Status helper -------------------------------------------------------
+// ── Status ─────────────────────────────────────────────────────────────────
 function setStatus(state) {
   statusBadge.className = state;
   badgeText.textContent =
@@ -416,57 +331,7 @@ function setStatus(state) {
     state === "speaking"  ? "SPEAKING"  : "STANDBY";
 }
 
-// ---- Typewriter ----------------------------------------------------------
-function typewrite(el, text, speed = 22) {
-  el.classList.add("typing");
-  el.textContent = "";
-  let i = 0;
-  const iv = setInterval(() => {
-    if (i < text.length) el.textContent += text[i++];
-    else { clearInterval(iv); el.classList.remove("typing"); }
-  }, speed);
-}
-
-// ---- Landmark helpers ----------------------------------------------------
-function dist(a, b) { return Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2); }
-
-function describeFace(lms, id) {
-  const faceH = dist(lms[10], lms[152]);
-  if (faceH < 0.001) return null;
-  const mO = dist(lms[13], lms[14]) / faceH;
-  const mW = dist(lms[61], lms[291]) / faceH;
-  const lE = dist(lms[159], lms[145]) / faceH;
-  const rE = dist(lms[386], lms[374]) / faceH;
-  const lB = (lms[33].y  - lms[70].y)  / faceH;
-  const rB = (lms[263].y - lms[300].y) / faceH;
-  const tl = (lms[234].y - lms[454].y) / faceH;
-  const mouth = mO > 0.06 ? (mO > 0.12 ? "wide open" : "slightly open") : "closed";
-  const smile = mW > 0.42 && mO < 0.08 ? ", smiling" : "";
-  const eyes  = ((lE+rE)/2) < 0.025 ? "squinting" : ((lE+rE)/2) > 0.05 ? "wide open" : "normal";
-  const brows = ((lB+rB)/2) > 0.08 ? "raised/anxious" : ((lB+rB)/2) < 0.02 ? "furrowed/focused" : "neutral";
-  const head  = Math.abs(tl) < 0.03 ? "level" : tl > 0 ? "tilted right" : "tilted left";
-  return `Subject ${id}: mouth ${mouth}${smile}, eyes ${eyes}, brows ${brows}, head ${head}`;
-}
-
-function describeHand(lms, hand, id) {
-  const tips = [4,8,12,16,20], pips = [3,6,10,14,18];
-  const names = ["thumb","index","middle","ring","pinky"];
-  const ext = names.filter((_,i) => lms[tips[i]].y < lms[pips[i]].y);
-  const g   = ext.length === 0 ? "fist" : ext.length === 5 ? "open hand" : ext.join("+") + " extended";
-  return `Hand ${id} (${hand}): ${g}`;
-}
-
-function buildScene(fr, hr) {
-  const p = [];
-  fr.faceLandmarks.forEach((l,i) => { const d = describeFace(l,i+1); if (d) p.push(d); });
-  hr.landmarks.forEach((l,i) => {
-    const h = hr.handedness[i]?.[0]?.displayName ?? "Unknown";
-    p.push(describeHand(l, h, i+1));
-  });
-  return p.length ? p.join(" | ") : "No subjects detected in frame.";
-}
-
-// ---- Boot ----------------------------------------------------------------
+// ── Boot ───────────────────────────────────────────────────────────────────
 async function boot() {
   startBtn.disabled = true;
 
@@ -492,13 +357,8 @@ async function boot() {
     });
   } catch (e) { fail("Camera error: " + e.message); return; }
 
-  loadStatus.textContent = "Starting video feed...";
   video.srcObject = stream;
-  try { await video.play(); }
-  catch (e) {
-    fail("Video play() failed: " + e.message);
-    stream.getTracks().forEach(t => t.stop()); video.srcObject = null; return;
-  }
+  try { await video.play(); } catch (e) { fail("Video error: " + e.message); return; }
 
   loadStatus.textContent = "Loading AI vision models...";
   try {
@@ -511,9 +371,7 @@ async function boot() {
           delegate: "GPU"
         },
         runningMode: "VIDEO", numFaces: 4,
-        minFaceDetectionConfidence: 0.5,
-        minFacePresenceConfidence:  0.5,
-        minTrackingConfidence:      0.5,
+        minFaceDetectionConfidence: 0.5, minFacePresenceConfidence: 0.5, minTrackingConfidence: 0.5,
       }),
       HandLandmarker.createFromOptions(vision, {
         baseOptions: {
@@ -521,29 +379,17 @@ async function boot() {
           delegate: "GPU"
         },
         runningMode: "VIDEO", numHands: 4,
-        minHandDetectionConfidence: 0.5,
-        minHandPresenceConfidence:  0.5,
-        minTrackingConfidence:      0.5,
+        minHandDetectionConfidence: 0.5, minHandPresenceConfidence: 0.5, minTrackingConfidence: 0.5,
       }),
     ]);
-  } catch (e) {
-    fail("Model load failed: " + e.message);
-    stream.getTracks().forEach(t => t.stop()); video.srcObject = null; return;
-  }
+  } catch (e) { fail("Model load failed: " + e.message); return; }
   drawingUtils = new DrawingUtils(ctx);
 
-  if (!video.videoWidth || !video.videoHeight) {
-    fail("No video signal -- try reloading");
-    stream.getTracks().forEach(t => t.stop()); video.srcObject = null; return;
-  }
-
-  // Hide splash, show controls
   splash.style.display = "none";
   micBtn.classList.add("show");
   spkBtn.classList.add("show");
-  // Init audio + WebSocket (requires user gesture)
+
   initOutAudio();
-  // Force AudioContext to running state right after the user gesture
   await outCtx.resume();
   connectLive();
   await startMic();
@@ -551,10 +397,9 @@ async function boot() {
   requestAnimationFrame(renderLoop);
 }
 
-// ---- Render loop ---------------------------------------------------------
+// ── Render loop ────────────────────────────────────────────────────────────
 function renderLoop() {
   if (video.readyState < 2) { requestAnimationFrame(renderLoop); return; }
-
   if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
     canvas.width = video.videoWidth; canvas.height = video.videoHeight;
   }
@@ -564,7 +409,6 @@ function renderLoop() {
   latestFaceResult = faceLandmarker.detectForVideo(video, ts);
   latestHandResult = handLandmarker.detectForVideo(video, ts);
 
-  // Face mesh
   for (const lms of latestFaceResult.faceLandmarks) {
     drawingUtils.drawConnectors(lms, FaceLandmarker.FACE_LANDMARKS_TESSELATION,
       { color: "#FFFFFF07", lineWidth: 0.3 });
@@ -581,24 +425,19 @@ function renderLoop() {
     drawingUtils.drawConnectors(lms, FaceLandmarker.FACE_LANDMARKS_RIGHT_EYEBROW,
       { color: "#ffcc0066", lineWidth: 1 });
   }
-
-  // Hands
   for (const lms of latestHandResult.landmarks) {
     drawingUtils.drawConnectors(lms, HandLandmarker.HAND_CONNECTIONS,
       { color: "#00FF5555", lineWidth: 2 });
-    drawingUtils.drawLandmarks(lms,
-      { radius: 3, color: "#00CCFF", fillColor: "#00CCFF33" });
+    drawingUtils.drawLandmarks(lms, { radius: 3, color: "#00CCFF", fillColor: "#00CCFF33" });
   }
 
-  // Counters & vibe
   faceCount.textContent = latestFaceResult.faceLandmarks.length;
   handCount.textContent = latestHandResult.landmarks.length;
-  vibeText.textContent  = latestFaceResult.faceLandmarks.length > 0 ? "target acquired" : "no target";
 
   requestAnimationFrame(renderLoop);
 }
 
-// ---- Buttons -------------------------------------------------------------
+// ── Buttons ────────────────────────────────────────────────────────────────
 micBtn.onclick = () => {
   micMuted = !micMuted;
   micBtn.innerHTML = micMuted ? "&#x1F507;" : "&#x1F399;";
