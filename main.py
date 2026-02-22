@@ -3,7 +3,11 @@ import json
 import os
 import re
 import traceback
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from google import genai
 from google.genai import types
@@ -71,6 +75,116 @@ if not GEMINI_API_KEY:
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 
+# ─── MEMORY STORE ─────────────────────────────────────────────────────────────
+MEMORY_PATH = Path("memory.json")
+
+class MemoryStore:
+    def __init__(self, path: Path):
+        self.path = path
+        self._lock = asyncio.Lock()
+        self.data = self._load()
+
+    def _load(self):
+        if self.path.exists():
+            try:
+                with open(self.path) as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        return {
+            "sessions": [],
+            "learned_profile": "",
+            "profile_updated": None,
+            "total_turns": 0,
+            "emotion_counts": {},
+        }
+
+    def _save(self):
+        with open(self.path, "w") as f:
+            json.dump(self.data, f, indent=2)
+
+    def new_session(self) -> str:
+        sid = str(uuid.uuid4())[:8]
+        self.data["sessions"].append({
+            "id": sid,
+            "started": datetime.now(timezone.utc).isoformat(),
+            "turns": [],
+            "emotions": [],
+        })
+        if len(self.data["sessions"]) > 50:
+            self.data["sessions"] = self.data["sessions"][-50:]
+        self._save()
+        return sid
+
+    def add_turn(self, sid: str, role: str, text: str):
+        s = next((x for x in self.data["sessions"] if x["id"] == sid), None)
+        if s and text.strip():
+            s["turns"].append({"role": role, "text": text[:400],
+                               "ts": datetime.now(timezone.utc).isoformat()})
+            self.data["total_turns"] = self.data.get("total_turns", 0) + 1
+            self._save()
+
+    def add_emotion(self, sid: str, mood: str):
+        s = next((x for x in self.data["sessions"] if x["id"] == sid), None)
+        if s:
+            s["emotions"].append({"mood": mood, "ts": datetime.now(timezone.utc).isoformat()})
+        c = self.data.setdefault("emotion_counts", {})
+        c[mood] = c.get(mood, 0) + 1
+        self._save()
+
+    def update_profile(self, profile: str):
+        self.data["learned_profile"] = profile
+        self.data["profile_updated"] = datetime.now(timezone.utc).isoformat()
+        self._save()
+
+    def get_context_snippet(self) -> str:
+        parts = []
+        if self.data.get("learned_profile"):
+            parts.append(f"[LEARNED PROFILE]\n{self.data['learned_profile']}")
+        counts = self.data.get("emotion_counts", {})
+        if counts:
+            top = sorted(counts.items(), key=lambda x: -x[1])[:6]
+            parts.append("[EMOTIONAL BASELINE] " + ", ".join(f"{m}({c}x)" for m, c in top))
+        recent = []
+        for s in self.data.get("sessions", [])[-3:]:
+            for t in s.get("turns", [])[-4:]:
+                recent.append(f"  [{t['role']}] {t['text'][:100]}")
+        if recent:
+            parts.append("[RECENT LOG]\n" + "\n".join(recent))
+        return "\n\n".join(parts)
+
+memory = MemoryStore(MEMORY_PATH)
+
+
+async def generate_profile() -> str:
+    """Ask Gemini to produce a concise behavioral profile from accumulated memory."""
+    sessions = memory.data.get("sessions", [])[-10:]
+    counts = memory.data.get("emotion_counts", {})
+    all_turns = []
+    for s in sessions:
+        for t in s.get("turns", []):
+            all_turns.append(f"[{t['role']}] {t['text'][:150]}")
+    if not all_turns and not counts:
+        return memory.data.get("learned_profile", "")
+    prompt = (
+        "You are PALANTIR. Produce a 3-5 sentence classified behavioral profile of the surveillance "
+        "target based on the data below. Be specific, cold, analytical. Reference their words and moods.\n\n"
+        f"EMOTION COUNTS: {json.dumps(counts)}\n\nINTERACTION LOG:\n" + "\n".join(all_turns[-40:])
+    )
+    try:
+        resp = await client.aio.models.generate_content(
+            model="gemini-2.0-flash", contents=prompt
+        )
+        return (resp.text or "").strip()
+    except Exception as e:
+        print(f"[generate_profile] {e}")
+        return memory.data.get("learned_profile", "")
+
+
+@app.get("/api/memory")
+async def get_memory():
+    return JSONResponse(memory.data)
+
 SYSTEM_PROMPT = (
     "You are PALANTIR — a classified AI surveillance system run by Mossad, Unit 8200, "
     "IDF, and Palantir Technologies. You are in a live real-time voice conversation "
@@ -109,10 +223,14 @@ LIVE_MODEL = "gemini-2.5-flash-native-audio-latest"
 
 
 def make_live_config() -> types.LiveConnectConfig:
+    ctx = memory.get_context_snippet()
+    sys_prompt = SYSTEM_PROMPT
+    if ctx:
+        sys_prompt = sys_prompt + "\n\n" + ctx
     return types.LiveConnectConfig(
         response_modalities=["AUDIO"],
         system_instruction=types.Content(
-            parts=[types.Part(text=SYSTEM_PROMPT)]
+            parts=[types.Part(text=sys_prompt)]
         ),
         speech_config=types.SpeechConfig(
             voice_config=types.VoiceConfig(
@@ -126,6 +244,7 @@ def make_live_config() -> types.LiveConnectConfig:
             turn_coverage=types.TurnCoverage.TURN_INCLUDES_ALL_INPUT,
         ),
         input_audio_transcription=types.AudioTranscriptionConfig(),
+        output_audio_transcription=types.AudioTranscriptionConfig(),
     )
 
 
@@ -133,6 +252,8 @@ def make_live_config() -> types.LiveConnectConfig:
 async def live_ws(websocket: WebSocket):
     await websocket.accept()
     print("[ws] client connected")
+    session_id = memory.new_session()
+    print(f"[ws] memory session: {session_id}")
     try:
         async with client.aio.live.connect(
             model=LIVE_MODEL, config=make_live_config()
@@ -156,8 +277,15 @@ async def live_ws(websocket: WebSocket):
                                     mime_type="audio/pcm;rate=16000",
                                 )
                             )
-                        elif "text" in msg:
-                            pass  # ignore text frames from browser
+                        elif "text" in msg and msg["text"]:
+                            try:
+                                ctrl = json.loads(msg["text"])
+                                if ctrl.get("type") == "emotion":
+                                    mood = ctrl.get("mood", "neutral")
+                                    memory.add_emotion(session_id, mood)
+                                    print(f"[emotion] {mood}")
+                            except Exception:
+                                pass
                 except WebSocketDisconnect:
                     print("[browser_to_gemini] browser disconnected")
                 except Exception as exc:
@@ -166,6 +294,7 @@ async def live_ws(websocket: WebSocket):
 
             # Transcript accumulation state
             transcript_buf = []
+            model_transcript_buf = []
             debounce_handle: asyncio.TimerHandle | None = None
 
             async def process_full_transcript():
@@ -174,6 +303,7 @@ async def live_ws(websocket: WebSocket):
                 transcript_buf = []
                 if not full:
                     return
+                memory.add_turn(session_id, "user", full)
                 tl = full.lower()
                 print(f"[transcript FULL] {full!r}")
 
@@ -240,7 +370,7 @@ async def live_ws(websocket: WebSocket):
 
             async def gemini_to_browser():
                 """Forward Gemini audio back to browser — loop across multiple turns."""
-                nonlocal transcript_buf, debounce_handle
+                nonlocal transcript_buf, model_transcript_buf, debounce_handle
                 audio_chunks = 0
                 turns = 0
                 try:
@@ -257,22 +387,32 @@ async def live_ws(websocket: WebSocket):
                                             if audio_chunks <= 3 or audio_chunks % 50 == 0:
                                                 print(f"[gemini→browser] audio chunk {audio_chunks}: {len(part.inline_data.data)} bytes")
                                             await websocket.send_bytes(part.inline_data.data)
-                                # Accumulate partial input transcription chunks
+                                # Input transcription (user speech)
                                 it = getattr(sc, 'input_transcription', None)
                                 if it:
                                     txt = getattr(it, 'text', None) or str(it)
                                     if txt:
                                         transcript_buf.append(txt)
                                         schedule_debounce()
+                                # Output transcription (model speech -> text)
+                                ot = getattr(sc, 'output_transcription', None)
+                                if ot:
+                                    txt = getattr(ot, 'text', None) or str(ot)
+                                    if txt:
+                                        model_transcript_buf.append(txt)
                                 if sc.turn_complete:
                                     turns += 1
                                     print(f"[gemini→browser] turn {turns} complete ({audio_chunks} total chunks)")
-                                    # Flush any remaining transcript immediately on turn end
                                     if transcript_buf:
                                         if debounce_handle:
                                             debounce_handle.cancel()
                                             debounce_handle = None
                                         await process_full_transcript()
+                                    if model_transcript_buf:
+                                        full_model = "".join(model_transcript_buf).strip()
+                                        model_transcript_buf.clear()
+                                        if full_model:
+                                            memory.add_turn(session_id, "assistant", full_model)
                         if not got_any:
                             print("[gemini_to_browser] session closed by Gemini")
                             break
@@ -282,10 +422,51 @@ async def live_ws(websocket: WebSocket):
                     print(f"[gemini_to_browser] ERROR: {exc}")
                     traceback.print_exc()
 
-            send_task = asyncio.create_task(browser_to_gemini())
-            recv_task = asyncio.create_task(gemini_to_browser())
+            async def retrain_loop():
+                """Every 90s: regenerate behavioral profile and re-inject into live session."""
+                try:
+                    while True:
+                        await asyncio.sleep(90)
+                        print("[retrain] generating profile from memory...")
+                        profile = await generate_profile()
+                        if profile:
+                            memory.update_profile(profile)
+                            ctx = memory.get_context_snippet()
+                            inject = (
+                                "[PALANTIR MEMORY SYNC — classified]\n" + ctx + "\n\n"
+                                "Silently integrate this updated profile. Do not announce it. "
+                                "Continue the conversation naturally."
+                            )
+                            try:
+                                await session.send_client_content(
+                                    turns=types.Content(
+                                        role="user",
+                                        parts=[types.Part(text=inject)],
+                                    ),
+                                    turn_complete=True,
+                                )
+                                print(f"[retrain] injected profile ({len(profile)} chars)")
+                            except Exception as inj_err:
+                                print(f"[retrain] inject error: {inj_err}")
+                            try:
+                                await websocket.send_text(json.dumps({
+                                    "type": "memory_updated",
+                                    "profile_preview": profile[:180],
+                                    "total_turns": memory.data.get("total_turns", 0),
+                                    "emotion_counts": memory.data.get("emotion_counts", {}),
+                                }))
+                            except Exception:
+                                pass
+                except asyncio.CancelledError:
+                    pass
+                except Exception as exc:
+                    print(f"[retrain_loop] {exc}")
+
+            send_task    = asyncio.create_task(browser_to_gemini())
+            recv_task    = asyncio.create_task(gemini_to_browser())
+            retrain_task = asyncio.create_task(retrain_loop())
             done, pending = await asyncio.wait(
-                [send_task, recv_task],
+                [send_task, recv_task, retrain_task],
                 return_when=asyncio.FIRST_COMPLETED,
             )
             for t in done:

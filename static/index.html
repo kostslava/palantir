@@ -30,6 +30,22 @@
     #header-sub { font-size: 9px; color: #333; letter-spacing: 3px; }
     #mood-badge { font-size: 8px; letter-spacing: 3px; text-transform: uppercase; color: #1a1a1a; margin-left: auto; transition: color 0.8s; padding-right: 4px; }
 
+    /* ── MEMORY HUD ── */
+    #memory-hud {
+      position: absolute; bottom: 48px; left: 12px; z-index: 8;
+      font-size: 7px; letter-spacing: 2px; color: #00ff8866;
+      pointer-events: none; line-height: 1.7; text-transform: uppercase;
+    }
+    #memory-hud b { color: #00ff88aa; }
+    #memory-flash {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+      background: rgba(0,0,0,0.82); border: 1px solid #00ff88;
+      color: #00ff88; font-size: 9px; letter-spacing: 3px; padding: 8px 18px;
+      z-index: 20; pointer-events: none; opacity: 0; transition: opacity 0.4s;
+      text-align: center; white-space: nowrap;
+    }
+    #memory-flash.show { opacity: 1; }
+
     /* ── SCENE ── */
     #scene { position: relative; flex: 1; overflow: hidden; }
     #video  { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; }
@@ -258,6 +274,12 @@
     <span>&#x270B; <strong id="hand-count">0</strong></span>
   </div>
 
+  <div id="memory-hud">
+    <div>MEMORY &mdash; turns: <b id="mem-turns">0</b></div>
+    <div>DOMINANT: <b id="mem-mood">&mdash;</b></div>
+  </div>
+  <div id="memory-flash">&#x25B6; PALANTIR MEMORY SYNCED</div>
+
   <div id="intel-panel">
     <div id="intel-header">
       <span id="intel-status">SEARCHING</span>
@@ -353,6 +375,47 @@ const MOOD_WINDOW = 22;
 let gestureLabelTimer = null;
 let activePalette = { ...MOOD_PALETTES.neutral };
 
+// ─── FACE OVERLAY IMAGES ──────────────────────────────────────────────────────
+// Happy → Mona Lisa (da Vinci, public domain)  |  Angry → Netanyahu (US DoD, public domain)
+const overlayImgHappy = new Image();
+overlayImgHappy.crossOrigin = "anonymous";
+overlayImgHappy.src = "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg/402px-Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg";
+const overlayImgAngry = new Image();
+overlayImgAngry.crossOrigin = "anonymous";
+overlayImgAngry.src = "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9b/Benjamin_Netanyahu_2023%2C_US_DoD.jpg/440px-Benjamin_Netanyahu_2023%2C_US_DoD.jpg";
+
+function drawFaceOverlay(lms) {
+  let img = null;
+  if      (currentMood === "happy") img = overlayImgHappy;
+  else if (currentMood === "angry") img = overlayImgAngry;
+  if (!img || !img.complete || !img.naturalWidth) return;
+  const W = canvas.width, H = canvas.height;
+  // Compute face bounding box from all 468 landmarks
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const l of lms) {
+    const x = l.x * W, y = l.y * H;
+    if (x < minX) minX = x; if (x > maxX) maxX = x;
+    if (y < minY) minY = y; if (y > maxY) maxY = y;
+  }
+  const cx = (minX + maxX) / 2;
+  const cy = (minY + maxY) / 2;
+  const fw = (maxX - minX) * 1.3;  // pad a bit so overlay covers hair/ears
+  const fh = (maxY - minY) * 1.3;
+  // Scale image to cover the face box while keeping aspect ratio
+  const aspect = img.naturalWidth / img.naturalHeight;
+  let dw, dh;
+  if (fw / fh > aspect) { dw = fw; dh = fw / aspect; }
+  else                  { dh = fh; dw = fh * aspect; }
+  ctx.save();
+  // Clip to ellipse matching face oval
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, fw / 2, fh / 2, 0, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.globalAlpha = 0.90;
+  ctx.drawImage(img, cx - dw / 2, cy - dh / 2, dw, dh);
+  ctx.restore();
+}
+
 function setMoodPalette(mood) {
   const p = MOOD_PALETTES[mood] || MOOD_PALETTES.neutral;
   activePalette = { ...p };
@@ -364,6 +427,10 @@ function setMoodPalette(mood) {
 }
 
 function onMoodChange(prev, next) {
+  // Send emotion event to server for memory logging
+  if (liveWs && liveWs.readyState === WebSocket.OPEN) {
+    liveWs.send(JSON.stringify({ type: "emotion", mood: next }));
+  }
   if (next === "angry") {
     scene.classList.add("shake");
     setTimeout(() => scene.classList.remove("shake"), 700);
@@ -443,24 +510,6 @@ function spawnMatrixChar() {
     char: String.fromCharCode(0x30A0+Math.floor(Math.random()*96)),
     life: 1, decay: 0.0035+Math.random()*0.004,
   });
-}
-
-// ─── CHERRY RAIN (user requested) ─────────────────────────────────────────────
-function spawnCherries(n = 400) {
-  // Spread cherries across the screen with gentle fall and slight horizontal drift
-  for (let i = 0; i < n; i++) {
-    particles.push({
-      x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height,
-      vx: (Math.random() - 0.5) * 20,
-      vy: 30 + Math.random() * 80,
-      life: 999999, // effectively persistent
-      decay: 0,     // don't auto-remove
-      size: 14 + Math.random() * 14,
-      isCherry: true,
-      emoji: '🍒',
-    });
-  }
 }
 
 // ─── PUNCH DETECTION ──────────────────────────────────────────────────────────
@@ -727,26 +776,7 @@ function updateAndDrawEffects(dt) {
     if(p.life<=0){particles.splice(i,1);continue;}
     const al=Math.max(0,p.life);
     ctx.globalCompositeOperation="lighter";
-    if (p.isCherry) {
-      // Gentle horizontal wrap
-      if (p.x < -40) p.x = canvas.width + 20;
-      if (p.x > canvas.width + 40) p.x = -20;
-      // Vertical wrap so cherries keep falling
-      if (p.y > canvas.height + 60) {
-        p.y = -20 - Math.random() * 120;
-        p.x = Math.random() * canvas.width;
-        p.vx = (Math.random() - 0.5) * 20;
-        p.vy = 30 + Math.random() * 80;
-      }
-      ctx.save();
-      ctx.globalCompositeOperation = "source-over";
-      const fontSize = Math.max(10, p.size);
-      ctx.font = `${fontSize}px serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(p.emoji || '🍒', p.x, p.y);
-      ctx.restore();
-    } else if(p.isRain){
+    if(p.isRain){
       ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p.x-p.vx*dt*4,p.y-p.vy*dt*4);
       ctx.strokeStyle=`rgba(70,110,255,${(al*0.65).toFixed(3)})`;
       ctx.lineWidth=p.size; ctx.stroke();
@@ -946,18 +976,43 @@ function handleCmd(msg){
   if(msg.type==="stop_audio")   stopAllAudio();
   else if(msg.type==="searching"){ stopAllAudio(); showSearching(msg.query); }
   else if(msg.type==="results")   showResults(msg.query,msg.results,msg.top_url||"");
+  else if(msg.type==="memory_updated"){
+    // Update HUD
+    const turnsEl = document.getElementById("mem-turns");
+    const moodEl  = document.getElementById("mem-mood");
+    if(turnsEl) turnsEl.textContent = msg.total_turns || 0;
+    if(moodEl && msg.emotion_counts){
+      const top = Object.entries(msg.emotion_counts).sort((a,b)=>b[1]-a[1])[0];
+      moodEl.textContent = top ? top[0].toUpperCase() : "NEUTRAL";
+    }
+    // Flash notification
+    const flash = document.getElementById("memory-flash");
+    if(flash){ flash.classList.add("show"); setTimeout(()=>flash.classList.remove("show"), 2200); }
+    console.log("[memory] profile updated:", msg.profile_preview);
+  }
 }
 
 function connectLive(){
   const proto=location.protocol==="https:"?"wss":"ws";
   liveWs=new WebSocket(`${proto}://${location.host}/ws/live`);
   liveWs.binaryType="arraybuffer";
-  liveWs.onopen=()=>{ connDot.className="live"; setStatus("listening"); };
+  liveWs.onopen=()=>{
+    connDot.className="live"; setStatus("listening");
+    // Periodic emotion heartbeat every 15s so backend always has fresh mood
+    if(liveWs._emotionTimer) clearInterval(liveWs._emotionTimer);
+    liveWs._emotionTimer = setInterval(()=>{
+      if(liveWs.readyState===WebSocket.OPEN)
+        liveWs.send(JSON.stringify({type:"emotion", mood: currentMood}));
+    }, 15000);
+  };
   liveWs.onmessage=(e)=>{
     if(e.data instanceof ArrayBuffer) schedulePCM(new Uint8Array(e.data));
     else if(typeof e.data==="string"){ try{ handleCmd(JSON.parse(e.data)); }catch(_){} }
   };
-  liveWs.onclose=()=>{ connDot.className="error"; setStatus("standby"); setTimeout(connectLive,3000); };
+  liveWs.onclose=()=>{
+    if(liveWs._emotionTimer){ clearInterval(liveWs._emotionTimer); liveWs._emotionTimer=null; }
+    connDot.className="error"; setStatus("standby"); setTimeout(connectLive,3000);
+  };
   liveWs.onerror=(err)=>console.error("[ws]",err);
 }
 
@@ -1023,7 +1078,7 @@ function renderLoop(){
   // Gesture detection
   latestHandResult.landmarks.forEach((lms,idx)=>handleGesture(lms,idx,ts));
 
-  // Draw face landmarks with mood-blended palette
+  // Draw face landmarks with mood-blended palette, then overlay image if mood matches
   for(const lms of latestFaceResult.faceLandmarks){
     drawingUtils.drawConnectors(lms,FaceLandmarker.FACE_LANDMARKS_TESSELATION, {color:activePalette.mesh,lineWidth:0.3});
     drawingUtils.drawConnectors(lms,FaceLandmarker.FACE_LANDMARKS_FACE_OVAL,   {color:activePalette.oval,lineWidth:1});
@@ -1032,6 +1087,8 @@ function renderLoop(){
     drawingUtils.drawConnectors(lms,FaceLandmarker.FACE_LANDMARKS_LIPS,        {color:activePalette.lip, lineWidth:1.5});
     drawingUtils.drawConnectors(lms,FaceLandmarker.FACE_LANDMARKS_LEFT_EYEBROW, {color:activePalette.brow,lineWidth:1});
     drawingUtils.drawConnectors(lms,FaceLandmarker.FACE_LANDMARKS_RIGHT_EYEBROW,{color:activePalette.brow,lineWidth:1});
+    // Face image overlay (happy → Mona Lisa, angry → Netanyahu)
+    drawFaceOverlay(lms);
   }
   for(const lms of latestHandResult.landmarks){
     drawingUtils.drawConnectors(lms,HandLandmarker.HAND_CONNECTIONS,{color:"#00FF5555",lineWidth:2});
