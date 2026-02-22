@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zen Observer</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0a0a0a; color: #e0e0e0; font-family: "Courier New", monospace; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+
+    #header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 20px; background: rgba(0,0,0,0.7); border-bottom: 1px solid #1a1a1a;
+      z-index: 10; flex-shrink: 0;
+    }
+    #header h1 { font-size: 12px; letter-spacing: 5px; text-transform: uppercase; color: #fff; }
+    #status { font-size: 11px; display: flex; align-items: center; gap: 8px; color: #666; }
+    #dot { width: 8px; height: 8px; border-radius: 50%; background: #333; flex-shrink: 0; transition: background 0.3s; }
+    #dot.live     { background: #00ff88; box-shadow: 0 0 8px #00ff88; animation: pulse 2s infinite; }
+    #dot.scanning { background: #ff6600; box-shadow: 0 0 8px #ff6600; animation: pulse 0.4s infinite; }
+    #dot.error    { background: #ff3366; box-shadow: 0 0 8px #ff3366; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    #scene { position: relative; flex: 1; overflow: hidden; }
+    #video  { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; }
+    #canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: scaleX(-1); pointer-events: none; }
+
+    #timer-bar {
+      position: absolute; top: 0; left: 0; height: 3px;
+      background: linear-gradient(90deg, #00ff88, #00aaff);
+      transition: width 0.15s linear; z-index: 11; width: 0%;
+    }
+
+    #panel {
+      position: absolute; bottom: 0; left: 0; right: 0; z-index: 10;
+      background: linear-gradient(to top, rgba(0,0,0,0.95) 60%, transparent);
+      padding: 60px 20px 20px;
+    }
+
+    #insult-box {
+      background: rgba(255,50,50,0.07);
+      border: 1px solid rgba(255,50,50,0.2);
+      border-radius: 6px;
+      padding: 14px 18px;
+      margin-bottom: 12px;
+      min-height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    #insult-icon { font-size: 22px; flex-shrink: 0; }
+    #insult-text { font-size: 15px; color: #ff9999; line-height: 1.5; font-style: italic; }
+    #insult-text.typing::after { content: "\u258B"; animation: blink 0.6s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    #meta { display: flex; gap: 16px; font-size: 11px; color: #555; flex-wrap: wrap; }
+    #meta span { display: flex; align-items: center; gap: 5px; }
+    #meta strong { color: #888; }
+
+    #splash {
+      position: absolute; inset: 0; background: #0a0a0a;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 24px; z-index: 100;
+    }
+    #splash h2 { font-size: 11px; letter-spacing: 6px; color: #444; text-transform: uppercase; }
+    #splash-title { font-size: 30px; letter-spacing: 3px; color: #fff; }
+    #splash p { font-size: 12px; color: #555; text-align: center; max-width: 320px; line-height: 1.8; }
+    #start-btn {
+      padding: 14px 44px; background: transparent;
+      border: 1px solid #333; color: #aaa;
+      font-family: inherit; font-size: 11px; letter-spacing: 4px;
+      cursor: pointer; border-radius: 4px; text-transform: uppercase; transition: all 0.2s;
+    }
+    #start-btn:hover { border-color: #00ff88; color: #00ff88; box-shadow: 0 0 24px rgba(0,255,136,0.12); }
+    #start-btn:disabled { opacity: 0.35; cursor: not-allowed; color: #555; border-color: #1e1e1e; box-shadow: none; }
+    #load-status { font-size: 11px; color: #444; letter-spacing: 2px; min-height: 16px; }
+
+    #mute-btn {
+      position: absolute; top: 12px; right: 20px; z-index: 12;
+      background: rgba(0,0,0,0.5); border: 1px solid #222; color: #555;
+      font-size: 16px; width: 32px; height: 32px; cursor: pointer; border-radius: 4px;
+      transition: all 0.2s; display: none; align-items: center; justify-content: center;
+    }
+    #mute-btn.show { display: flex; }
+    #mute-btn:hover { border-color: #555; color: #ccc; }
+  </style>
+</head>
+<body>
+
+<div id="header">
+  <h1>&#x2B21; Zen Observer</h1>
+  <div id="status">
+    <div id="dot"></div>
+    <span id="status-text">Standby</span>
+  </div>
+</div>
+
+<div id="scene">
+  <video id="video" playsinline autoplay muted></video>
+  <canvas id="canvas"></canvas>
+  <div id="timer-bar"></div>
+  <button id="mute-btn" title="Toggle voice">&#x1F50A;</button>
+
+  <div id="panel">
+    <div id="insult-box">
+      <span id="insult-icon">&#x1F3AF;</span>
+      <div id="insult-text">First roast incoming in 10 seconds&hellip;</div>
+    </div>
+    <div id="meta">
+      <span>&#x1F464; <strong id="face-count">0</strong> faces</span>
+      <span>&#x270B; <strong id="hand-count">0</strong> hands</span>
+      <span>&#x1F321; <strong id="vibe-text">&mdash;</strong></span>
+    </div>
+  </div>
+
+  <div id="splash">
+    <h2>System</h2>
+    <div id="splash-title">ZEN OBSERVER</div>
+    <p>Real-time face &amp; hand tracking.<br>AI roast delivered every 10 seconds.</p>
+    <button id="start-btn">Initialize</button>
+    <div id="load-status"></div>
+  </div>
+</div>
+
+<script type="module">
+import {
+  FaceLandmarker,
+  HandLandmarker,
+  FilesetResolver,
+  DrawingUtils
+} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/vision_bundle.mjs";
+
+const video      = document.getElementById("video");
+const canvas     = document.getElementById("canvas");
+const ctx        = canvas.getContext("2d");
+const dot        = document.getElementById("dot");
+const statusText = document.getElementById("status-text");
+const insultText = document.getElementById("insult-text");
+const faceCount  = document.getElementById("face-count");
+const handCount  = document.getElementById("hand-count");
+const vibeText   = document.getElementById("vibe-text");
+const timerBar   = document.getElementById("timer-bar");
+const splash     = document.getElementById("splash");
+const startBtn   = document.getElementById("start-btn");
+const loadStatus = document.getElementById("load-status");
+const muteBtn    = document.getElementById("mute-btn");
+
+let faceLandmarker, handLandmarker, drawingUtils;
+let analysisRunning = false;
+let lastGeminiTime  = 0;
+let muted           = false;
+const INTERVAL      = 10000; // 10 seconds between Gemini calls
+
+// ── TTS ──────────────────────────────────────────────────────────────────
+function speak(text) {
+  if (muted || !window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const utt   = new SpeechSynthesisUtterance(text);
+  utt.rate    = 1.05;
+  utt.pitch   = 0.85;
+  const voices = speechSynthesis.getVoices();
+  const pick   = voices.find(v =>
+    v.name.includes("Daniel") || v.name.includes("Alex") ||
+    v.name.includes("Google UK") || v.name.includes("Google US English")
+  );
+  if (pick) utt.voice = pick;
+  window.speechSynthesis.speak(utt);
+}
+
+muteBtn.onclick = () => {
+  muted = !muted;
+  muteBtn.innerHTML = muted ? "&#x1F507;" : "&#x1F50A;";
+  if (muted) window.speechSynthesis.cancel();
+};
+
+// ── Typewriter ──────────────────────────────────────────────────────────
+function typewrite(el, text, speed = 26) {
+  el.classList.add("typing");
+  el.textContent = "";
+  let i = 0;
+  const iv = setInterval(() => {
+    el.textContent += text[i++];
+    if (i >= text.length) { clearInterval(iv); el.classList.remove("typing"); }
+  }, speed);
+}
+
+// ── Boot — triggered by user click (needed for camera permission) ────────
+async function boot() {
+  startBtn.disabled = true;
+
+  const fail = (msg) => {
+    loadStatus.style.color = "#ff5555";
+    loadStatus.textContent = msg;
+    startBtn.disabled = false;
+  };
+
+  // Step 1: get camera stream (must be inside a user gesture)
+  loadStatus.style.color = "";
+  loadStatus.textContent = "Requesting camera\u2026";
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    });
+  } catch (e) {
+    fail("Camera error: " + e.message);
+    return;
+  }
+
+  // Step 2: attach stream and await play() — most reliable signal for a live feed
+  loadStatus.textContent = "Starting camera\u2026";
+  video.srcObject = stream;
+  try {
+    await video.play();
+  } catch (e) {
+    fail("Video play() failed: " + e.message);
+    stream.getTracks().forEach(t => t.stop());
+    video.srcObject = null;
+    return;
+  }
+
+  // Step 3: load MediaPipe models
+  loadStatus.textContent = "Loading AI models\u2026";
+  try {
+    const wasmUrl = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm";
+    const vision  = await FilesetResolver.forVisionTasks(wasmUrl);
+
+    [faceLandmarker, handLandmarker] = await Promise.all([
+      FaceLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+          delegate: "GPU",
+        },
+        runningMode: "VIDEO", numFaces: 6,
+        minFaceDetectionConfidence: 0.5,
+        minFacePresenceConfidence:  0.5,
+        minTrackingConfidence:      0.5,
+      }),
+      HandLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+          delegate: "GPU",
+        },
+        runningMode: "VIDEO", numHands: 4,
+        minHandDetectionConfidence: 0.5,
+        minHandPresenceConfidence:  0.5,
+        minTrackingConfidence:      0.5,
+      }),
+    ]);
+  } catch (e) {
+    fail("Model load failed: " + e.message);
+    stream.getTracks().forEach(t => t.stop());
+    video.srcObject = null;
+    return;
+  }
+
+  drawingUtils = new DrawingUtils(ctx);
+
+  // Step 4: verify we actually have live frames
+  if (!video.videoWidth || !video.videoHeight) {
+    fail("Camera has no video — try reloading the page");
+    stream.getTracks().forEach(t => t.stop());
+    video.srcObject = null;
+    return;
+  }
+
+  splash.style.display   = "none";
+  dot.className          = "live";
+  statusText.textContent = "Live";
+  muteBtn.classList.add("show");
+  lastGeminiTime = performance.now();
+
+  requestAnimationFrame(renderLoop);
+};
+
+// ── Render loop — runs at ~30fps ─────────────────────────────────────────
+function renderLoop() {
+  if (video.readyState < 2) { requestAnimationFrame(renderLoop); return; }
+
+  if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+  }
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const ts = performance.now();
+
+  // Face mesh
+  const faceResult = faceLandmarker.detectForVideo(video, ts);
+  for (const lms of faceResult.faceLandmarks) {
+    drawingUtils.drawConnectors(lms, FaceLandmarker.FACE_LANDMARKS_TESSELATION,
+      { color: "#FFFFFF10", lineWidth: 0.4 });
+    drawingUtils.drawConnectors(lms, FaceLandmarker.FACE_LANDMARKS_FACE_OVAL,
+      { color: "#ffffff25", lineWidth: 1 });
+    drawingUtils.drawConnectors(lms, FaceLandmarker.FACE_LANDMARKS_LEFT_EYE,
+      { color: "#00C8FF", lineWidth: 1.2 });
+    drawingUtils.drawConnectors(lms, FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE,
+      { color: "#00C8FF", lineWidth: 1.2 });
+    drawingUtils.drawConnectors(lms, FaceLandmarker.FACE_LANDMARKS_LIPS,
+      { color: "#FF6680", lineWidth: 1.5 });
+    drawingUtils.drawConnectors(lms, FaceLandmarker.FACE_LANDMARKS_LEFT_EYEBROW,
+      { color: "#ffcc00aa", lineWidth: 1 });
+    drawingUtils.drawConnectors(lms, FaceLandmarker.FACE_LANDMARKS_RIGHT_EYEBROW,
+      { color: "#ffcc00aa", lineWidth: 1 });
+  }
+
+  // Hands
+  const handResult = handLandmarker.detectForVideo(video, ts);
+  for (const lms of handResult.landmarks) {
+    drawingUtils.drawConnectors(lms, HandLandmarker.HAND_CONNECTIONS,
+      { color: "#00FF7788", lineWidth: 2 });
+    drawingUtils.drawLandmarks(lms, { radius: 3.5, color: "#00CCFF", fillColor: "#00CCFF44" });
+  }
+
+  // Live counters
+  faceCount.textContent = faceResult.faceLandmarks.length;
+  handCount.textContent = handResult.landmarks.length;
+
+  // Timer bar fills over 10s
+  const elapsed = ts - lastGeminiTime;
+  timerBar.style.width = Math.min(elapsed / INTERVAL, 1) * 100 + "%";
+
+  // Trigger Gemini every 10s
+  if (elapsed >= INTERVAL) triggerGemini();
+
+  requestAnimationFrame(renderLoop);
+}
+
+// ── Gemini call ───────────────────────────────────────────────────────────
+async function triggerGemini() {
+  if (analysisRunning) return;
+  analysisRunning = true;
+  lastGeminiTime  = performance.now();
+  dot.className   = "scanning";
+  statusText.textContent = "Analyzing\u2026";
+
+  // Capture frame — flip horizontally so Gemini sees the correct orientation
+  const cap = document.createElement("canvas");
+  cap.width = video.videoWidth; cap.height = video.videoHeight;
+  const cctx = cap.getContext("2d");
+  cctx.translate(cap.width, 0); cctx.scale(-1, 1);
+  cctx.drawImage(video, 0, 0);
+  const base64 = cap.toDataURL("image/jpeg", 0.75).split(",")[1];
+
+  try {
+    const res = await fetch("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: base64 }),
+    });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    applyResult(data.result);
+  } catch (e) {
+    dot.className = "error";
+    statusText.textContent = "API error";
+    console.error(e);
+    setTimeout(() => {
+      if (!analysisRunning) { dot.className = "live"; statusText.textContent = "Live"; }
+    }, 3000);
+  } finally {
+    analysisRunning = false;
+  }
+}
+
+// ── Render result + TTS ──────────────────────────────────────────────────
+function applyResult(jsonStr) {
+  dot.className = "live";
+  statusText.textContent = "Live";
+  let parsed;
+  try { parsed = JSON.parse(jsonStr); } catch { typewrite(insultText, jsonStr.slice(0, 180)); return; }
+
+  vibeText.textContent = parsed.social_vibe ?? "\u2014";
+  const insult = parsed.insult ?? "Nothing notable. Somehow that's even more embarrassing.";
+  typewrite(insultText, insult);
+  speak(insult);
+  console.log("[Gemini]", parsed);
+}
+
+startBtn.addEventListener("click", boot);
+
+// Pre-warm voice list (Chrome lazy-loads it)
+if ("onvoiceschanged" in window.speechSynthesis) {
+  window.speechSynthesis.onvoiceschanged = () => {};
+}
+</script>
+</body>
+</html>
