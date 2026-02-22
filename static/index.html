@@ -128,7 +128,7 @@ import {
   HandLandmarker,
   FilesetResolver,
   DrawingUtils
-} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/vision_bundle.mjs";
+} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
 
 const video      = document.getElementById("video");
 const canvas     = document.getElementById("canvas");
@@ -223,7 +223,7 @@ async function boot() {
   // Step 3: load MediaPipe models
   loadStatus.textContent = "Loading AI models\u2026";
   try {
-    const wasmUrl = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm";
+    const wasmUrl = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm";
     const vision  = await FilesetResolver.forVisionTasks(wasmUrl);
 
     [faceLandmarker, handLandmarker] = await Promise.all([
