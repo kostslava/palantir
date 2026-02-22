@@ -445,6 +445,24 @@ function spawnMatrixChar() {
   });
 }
 
+// ─── CHERRY RAIN (user requested) ─────────────────────────────────────────────
+function spawnCherries(n = 400) {
+  // Spread cherries across the screen with gentle fall and slight horizontal drift
+  for (let i = 0; i < n; i++) {
+    particles.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      vx: (Math.random() - 0.5) * 20,
+      vy: 30 + Math.random() * 80,
+      life: 999999, // effectively persistent
+      decay: 0,     // don't auto-remove
+      size: 14 + Math.random() * 14,
+      isCherry: true,
+      emoji: '🍒',
+    });
+  }
+}
+
 // ─── PUNCH DETECTION ──────────────────────────────────────────────────────────
 const prevHandPos = {};
 
@@ -709,7 +727,26 @@ function updateAndDrawEffects(dt) {
     if(p.life<=0){particles.splice(i,1);continue;}
     const al=Math.max(0,p.life);
     ctx.globalCompositeOperation="lighter";
-    if(p.isRain){
+    if (p.isCherry) {
+      // Gentle horizontal wrap
+      if (p.x < -40) p.x = canvas.width + 20;
+      if (p.x > canvas.width + 40) p.x = -20;
+      // Vertical wrap so cherries keep falling
+      if (p.y > canvas.height + 60) {
+        p.y = -20 - Math.random() * 120;
+        p.x = Math.random() * canvas.width;
+        p.vx = (Math.random() - 0.5) * 20;
+        p.vy = 30 + Math.random() * 80;
+      }
+      ctx.save();
+      ctx.globalCompositeOperation = "source-over";
+      const fontSize = Math.max(10, p.size);
+      ctx.font = `${fontSize}px serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(p.emoji || '🍒', p.x, p.y);
+      ctx.restore();
+    } else if(p.isRain){
       ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p.x-p.vx*dt*4,p.y-p.vy*dt*4);
       ctx.strokeStyle=`rgba(70,110,255,${(al*0.65).toFixed(3)})`;
       ctx.lineWidth=p.size; ctx.stroke();
