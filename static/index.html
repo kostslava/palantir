@@ -149,28 +149,61 @@ let faceLandmarker, handLandmarker, drawingUtils;
 let analysisRunning = false;
 let lastGeminiTime  = 0;
 let muted           = false;
-const INTERVAL      = 10000; // 10 seconds between Gemini calls
+const INTERVAL      = 10000;
 
-// ── TTS ──────────────────────────────────────────────────────────────────
+// ── Live API Audio (PCM 24kHz streaming) ──────────────────────────────────
+const SAMPLE_RATE = 24000;
+let audioCtx     = null;
+let speakWs      = null;
+let nextPlayTime = 0;
+
+function initAudio() {
+  audioCtx     = new AudioContext({ sampleRate: SAMPLE_RATE });
+  nextPlayTime = audioCtx.currentTime;
+}
+
+function schedulePCMChunk(bytes) {
+  if (!audioCtx || muted) return;
+  const i16 = new Int16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength >> 1);
+  const f32 = new Float32Array(i16.length);
+  for (let i = 0; i < i16.length; i++) f32[i] = i16[i] / 32768.0;
+  const buf = audioCtx.createBuffer(1, f32.length, SAMPLE_RATE);
+  buf.getChannelData(0).set(f32);
+  const src = audioCtx.createBufferSource();
+  src.buffer = buf;
+  src.connect(audioCtx.destination);
+  const when = Math.max(nextPlayTime, audioCtx.currentTime + 0.02);
+  src.start(when);
+  nextPlayTime = when + buf.duration;
+}
+
+function connectSpeakWs() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  speakWs = new WebSocket(`${proto}://${location.host}/ws/speak`);
+  speakWs.binaryType = 'arraybuffer';
+  speakWs.onmessage = (e) => {
+    if (typeof e.data === 'string') {
+      if (e.data.startsWith('ERROR:')) console.error('[Live API]', e.data);
+    } else {
+      schedulePCMChunk(new Uint8Array(e.data));
+    }
+  };
+  speakWs.onclose = () => { setTimeout(() => { if (!muted) connectSpeakWs(); }, 2000); };
+  speakWs.onerror = (e) => console.error('[speakWs]', e);
+}
+
 function speak(text) {
-  if (muted || !window.speechSynthesis) return;
-  window.speechSynthesis.cancel();
-  const utt   = new SpeechSynthesisUtterance(text);
-  utt.rate    = 1.05;
-  utt.pitch   = 0.85;
-  const voices = speechSynthesis.getVoices();
-  const pick   = voices.find(v =>
-    v.name.includes("Daniel") || v.name.includes("Alex") ||
-    v.name.includes("Google UK") || v.name.includes("Google US English")
-  );
-  if (pick) utt.voice = pick;
-  window.speechSynthesis.speak(utt);
+  if (muted) return;
+  if (!speakWs || speakWs.readyState !== WebSocket.OPEN) return;
+  nextPlayTime = audioCtx ? audioCtx.currentTime : 0;
+  speakWs.send(text);
 }
 
 muteBtn.onclick = () => {
   muted = !muted;
-  muteBtn.innerHTML = muted ? "&#x1F507;" : "&#x1F50A;";
-  if (muted) window.speechSynthesis.cancel();
+  muteBtn.innerHTML = muted ? '&#x1F507;' : '&#x1F50A;';
+  if (muted) { speakWs && speakWs.close(); }
+  else { connectSpeakWs(); }
 };
 
 // ── Typewriter ──────────────────────────────────────────────────────────
@@ -276,6 +309,10 @@ async function boot() {
   statusText.textContent = "Live";
   muteBtn.classList.add("show");
   lastGeminiTime = performance.now();
+
+  // Init AudioContext + Live API WebSocket (requires user gesture)
+  initAudio();
+  connectSpeakWs();
 
   requestAnimationFrame(renderLoop);
 };
@@ -433,26 +470,21 @@ async function triggerGemini() {
   }
 }
 
-// ── Render result + TTS ──────────────────────────────────────────────────
+// ── Render result + speak via Live API ──────────────────────────────
 function applyResult(jsonStr) {
   dot.className = "live";
   statusText.textContent = "Live";
   let parsed;
   try { parsed = JSON.parse(jsonStr); } catch { typewrite(insultText, jsonStr.slice(0, 180)); return; }
 
-  vibeText.textContent = parsed.social_vibe ?? "\u2014";
+  vibeText.textContent = parsed.social_vibe ?? "—";
   const insult = parsed.insult ?? "Nothing notable. Somehow that's even more embarrassing.";
   typewrite(insultText, insult);
-  speak(insult);
-  console.log("[Gemini]", parsed);
+  speak(insult); // ← goes to Live API WebSocket → real AI voice
+  console.log("[PALANTIR]", parsed);
 }
 
 startBtn.addEventListener("click", boot);
-
-// Pre-warm voice list (Chrome lazy-loads it)
-if ("onvoiceschanged" in window.speechSynthesis) {
-  window.speechSynthesis.onvoiceschanged = () => {};
-}
 </script>
 </body>
 </html>

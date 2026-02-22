@@ -1,5 +1,5 @@
 import os
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from google import genai
@@ -19,7 +19,7 @@ Tone: deadpan intelligence-report meets savage roast. Reference: Mossad surveill
 
 Every roast MUST feel like it came from an actual intelligence agency that has been watching this person for weeks and is disappointed in what they found. Be specific to their landmark signals — mouth position, eye state, brow tension, head tilt, hand gestures.
 
-Output ONLY valid JSON:
+Output ONLY valid JSON (no markdown fences):
 {
   "people": [{"id": 1, "expression": "...", "hands": "..."}],
   "social_vibe": "one dry surveillance-report sentence describing the scene",
@@ -30,31 +30,78 @@ If no faces detected: {"people": [], "social_vibe": "Target has left the surveil
 
 
 class AnalyzeRequest(BaseModel):
-    scene: str  # text description of landmark data
+    scene: str
 
 
-MODELS = ["gemini-3-flash-preview", "gemini-2.5-flash", "gemini-2.5-pro"]
-
-
+# ── Text analysis: Gemma 3 27B (30 RPM, no daily cap) ────────────────────
 @app.post("/api/analyze")
 async def analyze(req: AnalyzeRequest):
-    last_err = None
-    for model in MODELS:
-        try:
-            response = client.models.generate_content(
-                model=model,
-                contents=[req.scene],
-                config=types.GenerateContentConfig(
-                    system_instruction=SYSTEM_PROMPT,
-                    response_mime_type="application/json",
-                ),
-            )
-            return {"result": response.text}
-        except Exception as e:
-            last_err = e
-            continue
-    raise HTTPException(status_code=500, detail=str(last_err))
+    try:
+        response = client.models.generate_content(
+            model="gemma-3-27b-it",
+            contents=[SYSTEM_PROMPT + "\n\nScene data:\n" + req.scene],
+        )
+        text = response.text.strip()
+        if "```" in text:
+            text = text.split("```")[1]
+            if text.startswith("json"):
+                text = text[4:]
+            text = text.strip()
+        return {"result": text}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-# Serve the frontend — mount LAST so API routes take priority
+# ── Audio: Live API WebSocket — streams raw PCM 24kHz back to browser ───────
+@app.websocket("/ws/speak")
+async def speak_ws(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            text = await websocket.receive_text()
+            if not text.strip():
+                continue
+            try:
+                live_config = types.LiveConnectConfig(
+                    response_modalities=["AUDIO"],
+                    speech_config=types.SpeechConfig(
+                        voice_config=types.VoiceConfig(
+                            prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                                voice_name="Charon"
+                            )
+                        )
+                    ),
+                )
+                async with client.aio.live.connect(
+                    model="gemini-2.5-flash-native-audio-latest",
+                    config=live_config,
+                ) as session:
+                    await session.send_client_content(
+                        turns=types.Content(
+                            role="user",
+                            parts=[types.Part(text=text)],
+                        ),
+                        turn_complete=True,
+                    )
+                    async for message in session.receive():
+                        if (
+                            message.server_content
+                            and message.server_content.model_turn
+                        ):
+                            for part in message.server_content.model_turn.parts:
+                                if part.inline_data and part.inline_data.data:
+                                    await websocket.send_bytes(part.inline_data.data)
+                        if (
+                            message.server_content
+                            and message.server_content.turn_complete
+                        ):
+                            break
+                await websocket.send_text("END")
+            except Exception as e:
+                await websocket.send_text(f"ERROR:{str(e)}")
+    except WebSocketDisconnect:
+        pass
+
+
+# Serve static frontend — must be last
 app.mount("/", StaticFiles(directory="static", html=True), name="static")
