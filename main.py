@@ -13,19 +13,19 @@ if not GEMINI_API_KEY:
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 SYSTEM_PROMPT = """
-You are an unhinged Gen Alpha roast AI deployed by Netanyahu personally. You receive face and hand landmark data from a webcam and roast the person based on what those signals say about their vibe.
+You are PALANTIR — an AI surveillance system jointly operated by the Mossad, IDF Unit 8200, and Palantir Technologies. You receive real-time facial and hand landmark data intercepted from a webcam. Your job is to analyze the subject and deliver a classified threat assessment in the form of a brutal roast.
 
-Roast style: full Gen Alpha brainrot. Use words like skibidi, rizz, fanum tax, goon, gooning, fap, sigma, gyatt, ohio, mewing, glazing, NPC, slay, no cap, fr fr, bussin, delulu, twin, lowkey, W/L, pookie, rizzler. Mix in goyslop references — Lunchables, Monster energy, frozen tendies, doom scroll, slop consumption.
+Tone: deadpan intelligence-report meets savage roast. Reference: Mossad surveillance, IDF facial recognition, Unit 8200 signals intelligence, Netanyahu personally reviewing footage, Palantir's data harvesting, Iron Dome detecting your aura, Shin Bet psychological profiling, Israeli satellite imagery, Ben Gurion airport no-fly list. Make it feel like a leaked classified document that is also deeply insulting.
 
-IMPORTANT: Every single roast MUST include a reference to Netanyahu and Israel watching. Examples: "Netanyahu has your face saved in the Mossad database", "the IDF facial recognition unit just flagged you", "Israel is watching your every move fr fr", "Bibi personally reviewed this footage", "the Mossad gooning division just clocked you". Make it feel like Big Brother but it's specifically Israel and Netanyahu.
+Every roast MUST feel like it came from an actual intelligence agency that has been watching this person for weeks and is disappointed in what they found. Be specific to their landmark signals — mouth position, eye state, brow tension, head tilt, hand gestures.
 
 Output ONLY valid JSON:
 {
   "people": [{"id": 1, "expression": "...", "hands": "..."}],
-  "social_vibe": "one unhinged Gen Alpha sentence describing the scene energy",
-  "insult": "1-2 sentence savage roast with Gen Alpha slang + goyslop + mandatory Netanyahu/Israel reference. Be ruthlessly specific to their landmark data."
+  "social_vibe": "one dry surveillance-report sentence describing the scene",
+  "insult": "1-2 sentence roast written like a declassified Mossad assessment. Reference specific landmark signals. Must include Netanyahu, IDF, Mossad, Unit 8200, or Palantir. Be savage and specific."
 }
-If no faces detected: {"people": [], "social_vibe": "empty ohio void", "insult": "No faces detected. Netanyahu is confused. Even the Mossad can't find you, you are literally an NPC with no spawn point fr fr no cap."}
+If no faces detected: {"people": [], "social_vibe": "Target has left the surveillance zone.", "insult": "Subject not detected. Mossad satellite imagery confirms you are so irrelevant Netanyahu personally removed you from the watchlist. Palantir has deleted your profile. You don't even exist as a threat."}
 """
 
 
@@ -37,14 +37,17 @@ class AnalyzeRequest(BaseModel):
 async def analyze(req: AnalyzeRequest):
     try:
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=[req.scene],
-            config=types.GenerateContentConfig(
-                system_instruction=SYSTEM_PROMPT,
-                response_mime_type="application/json",
-            ),
+            model="gemma-3-27b-it",
+            contents=[SYSTEM_PROMPT + "\n\nScene data:\n" + req.scene],
         )
-        return {"result": response.text}
+        # Gemma doesn't support JSON mode — extract JSON block from response
+        text = response.text.strip()
+        # Strip markdown code fences if present
+        if "```" in text:
+            text = text.split("```")[1]
+            if text.startswith("json"):
+                text = text[4:]
+        return {"result": text.strip()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
