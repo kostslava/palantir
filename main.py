@@ -33,23 +33,27 @@ class AnalyzeRequest(BaseModel):
     scene: str  # text description of landmark data
 
 
+MODELS = ["gemini-3-flash-preview", "gemini-2.5-flash", "gemini-2.5-pro"]
+
+
 @app.post("/api/analyze")
 async def analyze(req: AnalyzeRequest):
-    try:
-        response = client.models.generate_content(
-            model="gemma-3-27b-it",
-            contents=[SYSTEM_PROMPT + "\n\nScene data:\n" + req.scene],
-        )
-        # Gemma doesn't support JSON mode — extract JSON block from response
-        text = response.text.strip()
-        # Strip markdown code fences if present
-        if "```" in text:
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
-        return {"result": text.strip()}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    last_err = None
+    for model in MODELS:
+        try:
+            response = client.models.generate_content(
+                model=model,
+                contents=[req.scene],
+                config=types.GenerateContentConfig(
+                    system_instruction=SYSTEM_PROMPT,
+                    response_mime_type="application/json",
+                ),
+            )
+            return {"result": response.text}
+        except Exception as e:
+            last_err = e
+            continue
+    raise HTTPException(status_code=500, detail=str(last_err))
 
 
 # Serve the frontend — mount LAST so API routes take priority
