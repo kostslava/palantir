@@ -36,7 +36,7 @@ async def analyze(req: AnalyzeRequest):
     try:
         image_bytes = base64.b64decode(req.image)
         response = client.models.generate_content(
-            model="gemini-3-flash-preview",
+            model="gemini-2.0-flash",
             contents=[
                 types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"),
                 "Analyze the faces and hands in this scene.",
