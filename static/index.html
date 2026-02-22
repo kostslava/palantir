@@ -3,236 +3,492 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Zen Observer</title>
+  <title>PALANTIR</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #0a0a0a; color: #e0e0e0; font-family: "Courier New", monospace; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+    body {
+      background: #050508; color: #e0e0e0;
+      font-family: "Courier New", monospace;
+      overflow: hidden; height: 100vh;
+      display: flex; flex-direction: column;
+    }
 
+    /* HEADER */
     #header {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 10px 20px; background: rgba(0,0,0,0.7); border-bottom: 1px solid #1a1a1a;
-      z-index: 10; flex-shrink: 0;
+      padding: 8px 20px; background: rgba(0,0,0,0.9);
+      border-bottom: 1px solid #111; z-index: 10; flex-shrink: 0;
     }
-    #header h1 { font-size: 12px; letter-spacing: 5px; text-transform: uppercase; color: #fff; }
-    #status { font-size: 11px; display: flex; align-items: center; gap: 8px; color: #666; }
-    #dot { width: 8px; height: 8px; border-radius: 50%; background: #333; flex-shrink: 0; transition: background 0.3s; }
-    #dot.live     { background: #00ff88; box-shadow: 0 0 8px #00ff88; animation: pulse 2s infinite; }
-    #dot.scanning { background: #ff6600; box-shadow: 0 0 8px #ff6600; animation: pulse 0.4s infinite; }
-    #dot.error    { background: #ff3366; box-shadow: 0 0 8px #ff3366; }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    #header-left { display: flex; align-items: center; gap: 12px; }
+    #header h1 { font-size: 11px; letter-spacing: 6px; color: #fff; text-transform: uppercase; }
+    #header-sub { font-size: 9px; color: #333; letter-spacing: 3px; }
+    #conn-dot { width: 7px; height: 7px; border-radius: 50%; background: #222; flex-shrink: 0; }
+    #conn-dot.live  { background: #00ff88; box-shadow: 0 0 8px #00ff88; animation: pulsed 2s infinite; }
+    #conn-dot.error { background: #ff3366; box-shadow: 0 0 8px #ff3366; }
+    @keyframes pulsed { 0%,100%{opacity:1} 50%{opacity:.3} }
+    #snap-label { font-size: 9px; color: #2a2a2a; letter-spacing: 2px; }
 
+    /* SCENE */
     #scene { position: relative; flex: 1; overflow: hidden; }
     #video  { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; }
     #canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: scaleX(-1); pointer-events: none; }
 
-    #timer-bar {
-      position: absolute; top: 0; left: 0; height: 3px;
-      background: linear-gradient(90deg, #00ff88, #00aaff);
-      transition: width 0.15s linear; z-index: 11; width: 0%;
+    /* SCAN LINE */
+    #scan-line {
+      position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, #00ff8833, transparent);
+      animation: scandown 5s linear infinite; z-index: 5; pointer-events: none;
+    }
+    @keyframes scandown { 0%{top:0%} 100%{top:100%} }
+
+    /* CORNER BRACKETS */
+    .corner {
+      position: absolute; width: 22px; height: 22px;
+      border-color: #00ff8830; border-style: solid; z-index: 6; pointer-events: none;
+    }
+    .corner-tl { top: 12px; left: 12px; border-width: 1px 0 0 1px; }
+    .corner-tr { top: 12px; right: 12px; border-width: 1px 1px 0 0; }
+    .corner-bl { bottom: 12px; left: 12px; border-width: 0 0 1px 1px; }
+    .corner-br { bottom: 12px; right: 12px; border-width: 0 1px 1px 0; }
+
+    /* STATUS BADGE */
+    #status-badge {
+      position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+      z-index: 10; display: flex; align-items: center; gap: 7px;
+      background: rgba(0,0,0,0.75); border: 1px solid #1a1a1a;
+      border-radius: 20px; padding: 5px 14px;
+      font-size: 9px; letter-spacing: 3px; text-transform: uppercase;
+      transition: border-color 0.3s, color 0.3s;
+      color: #444;
+    }
+    #status-badge.listening { border-color: #ff444477; color: #ff6666; }
+    #status-badge.listening .bdot { background: #ff4444; box-shadow: 0 0 6px #ff4444; animation: pulsed .5s infinite; }
+    #status-badge.speaking  { border-color: #4499ff77; color: #66aaff; }
+    #status-badge.speaking  .bdot { background: #4499ff; box-shadow: 0 0 6px #4499ff; animation: pulsed .4s infinite; }
+    #status-badge.standby   { border-color: #222; color: #333; }
+    #status-badge.standby   .bdot { background: #333; }
+    .bdot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; transition: background .3s; }
+
+    /* SNAPSHOT BAR */
+    #snap-bar {
+      position: absolute; bottom: 0; left: 0; height: 2px;
+      background: linear-gradient(90deg, #ff6600, #ffcc00);
+      transition: width 0.5s linear; z-index: 11; width: 0%;
     }
 
+    /* SNAPSHOT FLASH */
+    #snap-flash {
+      position: absolute; top: 14px; right: 110px; z-index: 12;
+      font-size: 8px; letter-spacing: 2px; color: #ff660088;
+      text-transform: uppercase; opacity: 0; transition: opacity .3s;
+    }
+    #snap-flash.show { opacity: 1; }
+
+    /* PANEL */
     #panel {
       position: absolute; bottom: 0; left: 0; right: 0; z-index: 10;
-      background: linear-gradient(to top, rgba(0,0,0,0.95) 60%, transparent);
-      padding: 60px 20px 20px;
+      background: linear-gradient(to top, rgba(0,0,0,.97) 55%, transparent);
+      padding: 50px 20px 16px;
     }
 
-    #insult-box {
-      background: rgba(255,50,50,0.07);
-      border: 1px solid rgba(255,50,50,0.2);
-      border-radius: 6px;
-      padding: 14px 18px;
-      margin-bottom: 12px;
-      min-height: 56px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
+    /* WAVEFORM */
+    #waveform { display: none; align-items: center; gap: 3px; margin-bottom: 10px; height: 22px; }
+    #waveform.active { display: flex; }
+    .wbar {
+      width: 3px; background: #4499ff; border-radius: 2px;
+      animation: wv .8s ease-in-out infinite;
     }
-    #insult-icon { font-size: 22px; flex-shrink: 0; }
-    #insult-text { font-size: 15px; color: #ff9999; line-height: 1.5; font-style: italic; }
-    #insult-text.typing::after { content: "\u258B"; animation: blink 0.6s infinite; }
+    .wbar:nth-child(1){animation-delay:0s}   .wbar:nth-child(2){animation-delay:.1s}
+    .wbar:nth-child(3){animation-delay:.2s}  .wbar:nth-child(4){animation-delay:.3s}
+    .wbar:nth-child(5){animation-delay:.4s}  .wbar:nth-child(6){animation-delay:.3s}
+    .wbar:nth-child(7){animation-delay:.2s}  .wbar:nth-child(8){animation-delay:.1s}
+    @keyframes wv { 0%,100%{height:4px} 50%{height:20px} }
+
+    /* AI TEXT BOX */
+    #ai-box {
+      background: rgba(0,20,60,.4); border: 1px solid rgba(68,153,255,.15);
+      border-radius: 6px; padding: 12px 16px; margin-bottom: 10px;
+      min-height: 50px; display: flex; align-items: flex-start; gap: 10px;
+    }
+    #ai-icon { font-size: 16px; flex-shrink: 0; margin-top: 2px; }
+    #ai-text { font-size: 14px; color: #88bbee; line-height: 1.55; font-style: italic; flex: 1; }
+    #ai-text.typing::after { content: "\258B"; animation: blink .55s infinite; color: #4499ff; }
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
 
-    #meta { display: flex; gap: 16px; font-size: 11px; color: #555; flex-wrap: wrap; }
-    #meta span { display: flex; align-items: center; gap: 5px; }
-    #meta strong { color: #888; }
+    /* META */
+    #meta { display: flex; gap: 14px; font-size: 10px; color: #333; flex-wrap: wrap; align-items: center; }
+    #meta span { display: flex; align-items: center; gap: 4px; }
+    #meta strong { color: #555; }
+    .msep { color: #1a1a1a; }
 
+    /* BUTTONS */
+    .ctrl-btn {
+      position: absolute; top: 12px; z-index: 12;
+      background: rgba(0,0,0,.6); border: 1px solid #222; color: #555;
+      font-size: 14px; width: 32px; height: 32px; cursor: pointer;
+      border-radius: 6px; transition: all .2s;
+      display: none; align-items: center; justify-content: center;
+    }
+    .ctrl-btn.show { display: flex; }
+    .ctrl-btn:hover { border-color: #555; color: #bbb; }
+    #mic-btn { right: 56px; }
+    #mic-btn.muted { border-color: #ff444444; color: #ff6644; }
+    #spk-btn { right: 14px; }
+
+    /* SPLASH */
     #splash {
-      position: absolute; inset: 0; background: #0a0a0a;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      gap: 24px; z-index: 100;
+      position: absolute; inset: 0; background: #050508;
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 18px; z-index: 100;
     }
-    #splash h2 { font-size: 11px; letter-spacing: 6px; color: #444; text-transform: uppercase; }
-    #splash-title { font-size: 30px; letter-spacing: 3px; color: #fff; }
-    #splash p { font-size: 12px; color: #555; text-align: center; max-width: 320px; line-height: 1.8; }
+    .sp-eyebrow { font-size: 9px; letter-spacing: 6px; color: #222; text-transform: uppercase; }
+    .sp-title   { font-size: 44px; letter-spacing: 10px; color: #fff; font-weight: bold; }
+    .sp-sub     { font-size: 9px; letter-spacing: 4px; color: #2a2a2a; text-transform: uppercase; }
+    .sp-divider { width: 36px; height: 1px; background: #1a1a1a; }
+    .sp-body    { font-size: 11px; color: #333; text-align: center; max-width: 340px; line-height: 2.1; margin-top: 6px; }
     #start-btn {
-      padding: 14px 44px; background: transparent;
-      border: 1px solid #333; color: #aaa;
-      font-family: inherit; font-size: 11px; letter-spacing: 4px;
-      cursor: pointer; border-radius: 4px; text-transform: uppercase; transition: all 0.2s;
+      padding: 13px 48px; background: transparent;
+      border: 1px solid #1a1a1a; color: #444;
+      font-family: inherit; font-size: 10px; letter-spacing: 5px;
+      cursor: pointer; border-radius: 4px; text-transform: uppercase;
+      transition: all .2s; margin-top: 10px;
     }
-    #start-btn:hover { border-color: #00ff88; color: #00ff88; box-shadow: 0 0 24px rgba(0,255,136,0.12); }
-    #start-btn:disabled { opacity: 0.35; cursor: not-allowed; color: #555; border-color: #1e1e1e; box-shadow: none; }
-    #load-status { font-size: 11px; color: #444; letter-spacing: 2px; min-height: 16px; }
-
-    #mute-btn {
-      position: absolute; top: 12px; right: 20px; z-index: 12;
-      background: rgba(0,0,0,0.5); border: 1px solid #222; color: #555;
-      font-size: 16px; width: 32px; height: 32px; cursor: pointer; border-radius: 4px;
-      transition: all 0.2s; display: none; align-items: center; justify-content: center;
-    }
-    #mute-btn.show { display: flex; }
-    #mute-btn:hover { border-color: #555; color: #ccc; }
+    #start-btn:hover { border-color: #ff3333; color: #ff5555; box-shadow: 0 0 30px rgba(255,30,30,.08); }
+    #start-btn:disabled { opacity: .25; cursor: not-allowed; color: #333; border-color: #111; box-shadow: none; }
+    #load-status { font-size: 10px; color: #2a2a2a; letter-spacing: 2px; min-height: 14px; }
   </style>
 </head>
 <body>
 
 <div id="header">
-  <h1>&#x2B21; Zen Observer</h1>
-  <div id="status">
-    <div id="dot"></div>
-    <span id="status-text">Standby</span>
+  <div id="header-left">
+    <div id="conn-dot"></div>
+    <div>
+      <h1>&#x2622; PALANTIR</h1>
+      <div id="header-sub">UNIT 8200 &nbsp;&middot;&nbsp; MOSSAD &nbsp;&middot;&nbsp; IDF &nbsp;&middot;&nbsp; SURVEILLANCE ACTIVE</div>
+    </div>
   </div>
+  <div id="snap-label">SNAPSHOT: --</div>
 </div>
 
 <div id="scene">
   <video id="video" playsinline autoplay muted></video>
   <canvas id="canvas"></canvas>
-  <div id="timer-bar"></div>
-  <button id="mute-btn" title="Toggle voice">&#x1F50A;</button>
+
+  <div class="corner corner-tl"></div>
+  <div class="corner corner-tr"></div>
+  <div class="corner corner-bl"></div>
+  <div class="corner corner-br"></div>
+  <div id="scan-line"></div>
+
+  <div id="status-badge" class="standby">
+    <div class="bdot"></div>
+    <span id="badge-text">STANDBY</span>
+  </div>
+  <span id="snap-flash">&#x25A0; SNAPSHOT SENT</span>
+
+  <button id="mic-btn" class="ctrl-btn" title="Toggle mic">&#x1F399;</button>
+  <button id="spk-btn" class="ctrl-btn" title="Toggle speaker">&#x1F50A;</button>
 
   <div id="panel">
-    <div id="insult-box">
-      <span id="insult-icon">&#x1F3AF;</span>
-      <div id="insult-text">First roast incoming in 10 seconds&hellip;</div>
+    <div id="waveform">
+      <div class="wbar"></div><div class="wbar"></div>
+      <div class="wbar"></div><div class="wbar"></div>
+      <div class="wbar"></div><div class="wbar"></div>
+      <div class="wbar"></div><div class="wbar"></div>
+    </div>
+    <div id="ai-box">
+      <span id="ai-icon">&#x1F9FF;</span>
+      <div id="ai-text">Establishing secure channel with Mossad relay&hellip;</div>
     </div>
     <div id="meta">
       <span>&#x1F464; <strong id="face-count">0</strong> faces</span>
+      <span class="msep">|</span>
       <span>&#x270B; <strong id="hand-count">0</strong> hands</span>
-      <span>&#x1F321; <strong id="vibe-text">&mdash;</strong></span>
+      <span class="msep">|</span>
+      <span>&#x1F4E1; <strong id="vibe-text">scanning</strong></span>
     </div>
   </div>
 
-  <div id="splash">
-    <h2>System</h2>
-    <div id="splash-title">ZEN OBSERVER</div>
-    <p>Real-time face &amp; hand tracking.<br>AI roast delivered every 10 seconds.</p>
-    <button id="start-btn">Initialize</button>
-    <div id="load-status"></div>
-  </div>
+  <div id="snap-bar"></div>
+</div>
+
+<div id="splash">
+  <div class="sp-eyebrow">Classified &mdash; Level 5 Clearance</div>
+  <div class="sp-title">PALANTIR</div>
+  <div class="sp-sub">Mossad &nbsp;&middot;&nbsp; Unit 8200 &nbsp;&middot;&nbsp; IDF &nbsp;&middot;&nbsp; Palantir Technologies</div>
+  <div class="sp-divider"></div>
+  <p class="sp-body">
+    Real-time facial surveillance &amp; voice interrogation.<br>
+    Your biometrics are being ingested into Palantir AIP.<br>
+    Speak freely &mdash; it won&apos;t help.
+  </p>
+  <button id="start-btn">Authorize Access</button>
+  <div id="load-status"></div>
 </div>
 
 <script type="module">
 import {
-  FaceLandmarker,
-  HandLandmarker,
-  FilesetResolver,
-  DrawingUtils
+  FaceLandmarker, HandLandmarker,
+  FilesetResolver, DrawingUtils
 } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
 
-const video      = document.getElementById("video");
-const canvas     = document.getElementById("canvas");
-const ctx        = canvas.getContext("2d");
-const dot        = document.getElementById("dot");
-const statusText = document.getElementById("status-text");
-const insultText = document.getElementById("insult-text");
-const faceCount  = document.getElementById("face-count");
-const handCount  = document.getElementById("hand-count");
-const vibeText   = document.getElementById("vibe-text");
-const timerBar   = document.getElementById("timer-bar");
-const splash     = document.getElementById("splash");
-const startBtn   = document.getElementById("start-btn");
-const loadStatus = document.getElementById("load-status");
-const muteBtn    = document.getElementById("mute-btn");
+// DOM refs
+const video       = document.getElementById("video");
+const canvas      = document.getElementById("canvas");
+const ctx         = canvas.getContext("2d");
+const connDot     = document.getElementById("conn-dot");
+const statusBadge = document.getElementById("status-badge");
+const badgeText   = document.getElementById("badge-text");
+const aiText      = document.getElementById("ai-text");
+const faceCount   = document.getElementById("face-count");
+const handCount   = document.getElementById("hand-count");
+const vibeText    = document.getElementById("vibe-text");
+const snapBar     = document.getElementById("snap-bar");
+const snapLabel   = document.getElementById("snap-label");
+const snapFlash   = document.getElementById("snap-flash");
+const waveform    = document.getElementById("waveform");
+const splash      = document.getElementById("splash");
+const startBtn    = document.getElementById("start-btn");
+const loadStatus  = document.getElementById("load-status");
+const micBtn      = document.getElementById("mic-btn");
+const spkBtn      = document.getElementById("spk-btn");
 
 let faceLandmarker, handLandmarker, drawingUtils;
-let analysisRunning = false;
-let lastGeminiTime  = 0;
-let muted           = false;
-const INTERVAL      = 10000;
+let latestFaceResult = { faceLandmarks: [] };
+let latestHandResult = { landmarks: [], handedness: [] };
+let micMuted = false;
+let spkMuted = false;
+let liveWs   = null;
 
-// ── Live API Audio (PCM 24kHz streaming) ──────────────────────────────────
-const SAMPLE_RATE = 24000;
-let audioCtx     = null;
-let speakWs      = null;
+// ---- Playback audio (24kHz PCM from Gemini) ------------------------------
+const OUT_SR     = 24000;
+let outCtx       = null;
 let nextPlayTime = 0;
+let isSpeaking   = false;
+let speakTimer   = null;
 
-function initAudio() {
-  audioCtx     = new AudioContext({ sampleRate: SAMPLE_RATE });
-  nextPlayTime = audioCtx.currentTime;
+function initOutAudio() {
+  outCtx = new AudioContext({ sampleRate: OUT_SR });
+  nextPlayTime = outCtx.currentTime;
 }
 
-function schedulePCMChunk(bytes) {
-  if (!audioCtx || muted) return;
+function schedulePCM(bytes) {
+  if (!outCtx || spkMuted) return;
   const i16 = new Int16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength >> 1);
   const f32 = new Float32Array(i16.length);
-  for (let i = 0; i < i16.length; i++) f32[i] = i16[i] / 32768.0;
-  const buf = audioCtx.createBuffer(1, f32.length, SAMPLE_RATE);
+  for (let i = 0; i < i16.length; i++) f32[i] = i16[i] / 32768;
+  const buf = outCtx.createBuffer(1, f32.length, OUT_SR);
   buf.getChannelData(0).set(f32);
-  const src = audioCtx.createBufferSource();
+  const src = outCtx.createBufferSource();
   src.buffer = buf;
-  src.connect(audioCtx.destination);
-  const when = Math.max(nextPlayTime, audioCtx.currentTime + 0.02);
+  src.connect(outCtx.destination);
+  const when = Math.max(nextPlayTime, outCtx.currentTime + 0.02);
   src.start(when);
   nextPlayTime = when + buf.duration;
+  setSpeaking(true);
+  clearTimeout(speakTimer);
+  speakTimer = setTimeout(() => setSpeaking(false), 700);
 }
 
-function connectSpeakWs() {
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  speakWs = new WebSocket(`${proto}://${location.host}/ws/speak`);
-  speakWs.binaryType = 'arraybuffer';
-  speakWs.onmessage = (e) => {
-    if (typeof e.data === 'string') {
-      if (e.data.startsWith('ERROR:')) console.error('[Live API]', e.data);
+function setSpeaking(on) {
+  if (isSpeaking === on) return;
+  isSpeaking = on;
+  if (on) {
+    setStatus("speaking");
+    waveform.classList.add("active");
+  } else {
+    waveform.classList.remove("active");
+    setStatus(micMuted ? "standby" : "listening");
+  }
+}
+
+// ---- Microphone capture -> 16kHz PCM16 -----------------------------------
+const WORKLET_CODE = `
+class MicProcessor extends AudioWorkletProcessor {
+  constructor() { super(); this._buf = []; this._chunk = 1600; }
+  process(inputs) {
+    const ch = inputs[0] && inputs[0][0];
+    if (!ch) return true;
+    for (let i = 0; i < ch.length; i++) {
+      this._buf.push(ch[i]);
+      if (this._buf.length >= this._chunk) {
+        const i16 = new Int16Array(this._chunk);
+        for (let j = 0; j < this._chunk; j++)
+          i16[j] = Math.max(-32768, Math.min(32767, Math.round(this._buf[j] * 32767)));
+        this.port.postMessage(i16.buffer, [i16.buffer]);
+        this._buf = [];
+      }
+    }
+    return true;
+  }
+}
+registerProcessor('mic-processor', MicProcessor);
+`;
+
+let micCtx = null;
+
+async function startMic() {
+  let micStream;
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }
+    });
+  } catch (e) {
+    console.error("[mic]", e); return;
+  }
+  micCtx = new AudioContext({ sampleRate: 16000 });
+  const blob = new Blob([WORKLET_CODE], { type: "application/javascript" });
+  const url  = URL.createObjectURL(blob);
+  await micCtx.audioWorklet.addModule(url);
+  URL.revokeObjectURL(url);
+  const src  = micCtx.createMediaStreamSource(micStream);
+  const node = new AudioWorkletNode(micCtx, "mic-processor");
+  node.port.onmessage = (e) => {
+    if (!micMuted && liveWs && liveWs.readyState === WebSocket.OPEN)
+      liveWs.send(e.data);
+  };
+  src.connect(node);
+  micBtn.classList.remove("muted");
+}
+
+// ---- Live WebSocket -------------------------------------------------------
+function connectLive() {
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  liveWs = new WebSocket(`${proto}://${location.host}/ws/live`);
+  liveWs.binaryType = "arraybuffer";
+
+  liveWs.onopen = () => {
+    connDot.className = "live";
+    setStatus(micMuted ? "standby" : "listening");
+    typewrite(aiText,
+      "PALANTIR online. Mossad relay established. " +
+      "Palantir AIP is now ingesting your biometrics. " +
+      "You may speak -- Unit 8200 is already judging you."
+    );
+  };
+
+  liveWs.onmessage = (e) => {
+    if (typeof e.data === "string") {
+      if (e.data.startsWith("TEXT:")) {
+        const txt = e.data.slice(5).trim();
+        if (txt) typewrite(aiText, txt);
+      } else if (e.data.startsWith("ERROR:")) {
+        typewrite(aiText, "[SYSTEM ERROR] " + e.data.slice(6));
+        connDot.className = "error";
+      }
+      // "END" = turn complete, just ignore
     } else {
-      schedulePCMChunk(new Uint8Array(e.data));
+      schedulePCM(new Uint8Array(e.data));
     }
   };
-  speakWs.onclose = () => { setTimeout(() => { if (!muted) connectSpeakWs(); }, 2000); };
-  speakWs.onerror = (e) => console.error('[speakWs]', e);
+
+  liveWs.onclose = () => {
+    connDot.className = "error";
+    setStatus("standby");
+    setTimeout(connectLive, 3000);
+  };
+
+  liveWs.onerror = (err) => console.error("[live ws]", err);
 }
 
-function speak(text) {
-  if (muted) return;
-  if (!speakWs || speakWs.readyState !== WebSocket.OPEN) return;
-  nextPlayTime = audioCtx ? audioCtx.currentTime : 0;
-  speakWs.send(text);
+function sendScene(scene) {
+  if (liveWs && liveWs.readyState === WebSocket.OPEN) {
+    liveWs.send("SCENE:" + scene);
+    snapFlash.classList.add("show");
+    setTimeout(() => snapFlash.classList.remove("show"), 1800);
+  }
 }
 
-muteBtn.onclick = () => {
-  muted = !muted;
-  muteBtn.innerHTML = muted ? '&#x1F507;' : '&#x1F50A;';
-  if (muted) { speakWs && speakWs.close(); }
-  else { connectSpeakWs(); }
-};
+// ---- Status helper -------------------------------------------------------
+function setStatus(state) {
+  statusBadge.className = state;
+  badgeText.textContent =
+    state === "listening" ? "LISTENING" :
+    state === "speaking"  ? "SPEAKING"  : "STANDBY";
+}
 
-// ── Typewriter ──────────────────────────────────────────────────────────
-function typewrite(el, text, speed = 26) {
+// ---- Typewriter ----------------------------------------------------------
+function typewrite(el, text, speed = 22) {
   el.classList.add("typing");
   el.textContent = "";
   let i = 0;
   const iv = setInterval(() => {
-    el.textContent += text[i++];
-    if (i >= text.length) { clearInterval(iv); el.classList.remove("typing"); }
+    if (i < text.length) el.textContent += text[i++];
+    else { clearInterval(iv); el.classList.remove("typing"); }
   }, speed);
 }
 
-// ── Boot — triggered by user click (needed for camera permission) ────────
+// ---- Snapshot timer (every 45s) ------------------------------------------
+const SNAP_INTERVAL = 45000;
+let lastSnapTime    = 0;
+
+function updateSnap(ts) {
+  const elapsed = ts - lastSnapTime;
+  const pct     = Math.min(elapsed / SNAP_INTERVAL, 1);
+  snapBar.style.width = (pct * 100) + "%";
+  const sec = Math.max(0, Math.ceil((SNAP_INTERVAL - elapsed) / 1000));
+  snapLabel.textContent = "SNAPSHOT: " + sec + "s";
+  if (elapsed >= SNAP_INTERVAL) {
+    lastSnapTime = ts;
+    sendScene(buildScene(latestFaceResult, latestHandResult));
+  }
+}
+
+// ---- Landmark helpers ----------------------------------------------------
+function dist(a, b) { return Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2); }
+
+function describeFace(lms, id) {
+  const faceH = dist(lms[10], lms[152]);
+  if (faceH < 0.001) return null;
+  const mO = dist(lms[13], lms[14]) / faceH;
+  const mW = dist(lms[61], lms[291]) / faceH;
+  const lE = dist(lms[159], lms[145]) / faceH;
+  const rE = dist(lms[386], lms[374]) / faceH;
+  const lB = (lms[33].y  - lms[70].y)  / faceH;
+  const rB = (lms[263].y - lms[300].y) / faceH;
+  const tl = (lms[234].y - lms[454].y) / faceH;
+  const mouth = mO > 0.06 ? (mO > 0.12 ? "wide open" : "slightly open") : "closed";
+  const smile = mW > 0.42 && mO < 0.08 ? ", smiling" : "";
+  const eyes  = ((lE+rE)/2) < 0.025 ? "squinting" : ((lE+rE)/2) > 0.05 ? "wide open" : "normal";
+  const brows = ((lB+rB)/2) > 0.08 ? "raised/anxious" : ((lB+rB)/2) < 0.02 ? "furrowed/focused" : "neutral";
+  const head  = Math.abs(tl) < 0.03 ? "level" : tl > 0 ? "tilted right" : "tilted left";
+  return `Subject ${id}: mouth ${mouth}${smile}, eyes ${eyes}, brows ${brows}, head ${head}`;
+}
+
+function describeHand(lms, hand, id) {
+  const tips = [4,8,12,16,20], pips = [3,6,10,14,18];
+  const names = ["thumb","index","middle","ring","pinky"];
+  const ext = names.filter((_,i) => lms[tips[i]].y < lms[pips[i]].y);
+  const g   = ext.length === 0 ? "fist" : ext.length === 5 ? "open hand" : ext.join("+") + " extended";
+  return `Hand ${id} (${hand}): ${g}`;
+}
+
+function buildScene(fr, hr) {
+  const p = [];
+  fr.faceLandmarks.forEach((l,i) => { const d = describeFace(l,i+1); if (d) p.push(d); });
+  hr.landmarks.forEach((l,i) => {
+    const h = hr.handedness[i]?.[0]?.displayName ?? "Unknown";
+    p.push(describeHand(l, h, i+1));
+  });
+  return p.length ? p.join(" | ") : "No subjects detected in frame.";
+}
+
+// ---- Boot ----------------------------------------------------------------
 async function boot() {
   startBtn.disabled = true;
 
   const fail = (msg) => {
-    loadStatus.style.color = "#ff5555";
+    loadStatus.style.color = "#ff4444";
     loadStatus.textContent = msg;
     startBtn.disabled = false;
   };
 
-  // Step 1: get camera stream (must be inside a user gesture)
   loadStatus.style.color = "";
-  loadStatus.textContent = "Requesting camera\u2026";
+  loadStatus.textContent = "Requesting camera access...";
 
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    fail("Camera API unavailable — open this page in Chrome or Safari at http://localhost:8000 (not inside VS Code's browser)");
+  if (!navigator.mediaDevices?.getUserMedia) {
+    fail("Camera API unavailable -- use Chrome at http://localhost:8000");
     return;
   }
 
@@ -242,36 +498,27 @@ async function boot() {
       video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
       audio: false
     });
-  } catch (e) {
-    fail("Camera error: " + e.message);
-    return;
-  }
+  } catch (e) { fail("Camera error: " + e.message); return; }
 
-  // Step 2: attach stream and await play() — most reliable signal for a live feed
-  loadStatus.textContent = "Starting camera\u2026";
+  loadStatus.textContent = "Starting video feed...";
   video.srcObject = stream;
-  try {
-    await video.play();
-  } catch (e) {
+  try { await video.play(); }
+  catch (e) {
     fail("Video play() failed: " + e.message);
-    stream.getTracks().forEach(t => t.stop());
-    video.srcObject = null;
-    return;
+    stream.getTracks().forEach(t => t.stop()); video.srcObject = null; return;
   }
 
-  // Step 3: load MediaPipe models
-  loadStatus.textContent = "Loading AI models\u2026";
+  loadStatus.textContent = "Loading AI vision models...";
   try {
     const wasmUrl = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm";
     const vision  = await FilesetResolver.forVisionTasks(wasmUrl);
-
     [faceLandmarker, handLandmarker] = await Promise.all([
       FaceLandmarker.createFromOptions(vision, {
         baseOptions: {
           modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
-          delegate: "GPU",
+          delegate: "GPU"
         },
-        runningMode: "VIDEO", numFaces: 6,
+        runningMode: "VIDEO", numFaces: 4,
         minFaceDetectionConfidence: 0.5,
         minFacePresenceConfidence:  0.5,
         minTrackingConfidence:      0.5,
@@ -279,7 +526,7 @@ async function boot() {
       HandLandmarker.createFromOptions(vision, {
         baseOptions: {
           modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-          delegate: "GPU",
+          delegate: "GPU"
         },
         runningMode: "VIDEO", numHands: 4,
         minHandDetectionConfidence: 0.5,
@@ -289,200 +536,89 @@ async function boot() {
     ]);
   } catch (e) {
     fail("Model load failed: " + e.message);
-    stream.getTracks().forEach(t => t.stop());
-    video.srcObject = null;
-    return;
+    stream.getTracks().forEach(t => t.stop()); video.srcObject = null; return;
   }
-
   drawingUtils = new DrawingUtils(ctx);
 
-  // Step 4: verify we actually have live frames
   if (!video.videoWidth || !video.videoHeight) {
-    fail("Camera has no video — try reloading the page");
-    stream.getTracks().forEach(t => t.stop());
-    video.srcObject = null;
-    return;
+    fail("No video signal -- try reloading");
+    stream.getTracks().forEach(t => t.stop()); video.srcObject = null; return;
   }
 
-  splash.style.display   = "none";
-  dot.className          = "live";
-  statusText.textContent = "Live";
-  muteBtn.classList.add("show");
-  lastGeminiTime = performance.now();
+  // Hide splash, show controls
+  splash.style.display = "none";
+  micBtn.classList.add("show");
+  spkBtn.classList.add("show");
+  lastSnapTime = performance.now() - (SNAP_INTERVAL - 8000); // first snapshot in ~8s
 
-  // Init AudioContext + Live API WebSocket (requires user gesture)
-  initAudio();
-  connectSpeakWs();
+  // Init audio + WebSocket (requires user gesture)
+  initOutAudio();
+  connectLive();
+  await startMic();
 
   requestAnimationFrame(renderLoop);
-};
+}
 
-// ── Render loop — runs at ~30fps ─────────────────────────────────────────
+// ---- Render loop ---------------------------------------------------------
 function renderLoop() {
   if (video.readyState < 2) { requestAnimationFrame(renderLoop); return; }
 
   if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
   }
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   const ts = performance.now();
+  latestFaceResult = faceLandmarker.detectForVideo(video, ts);
+  latestHandResult = handLandmarker.detectForVideo(video, ts);
 
   // Face mesh
-  latestFaceResult = faceLandmarker.detectForVideo(video, ts);
-  const faceResult = latestFaceResult;
-  for (const lms of faceResult.faceLandmarks) {
+  for (const lms of latestFaceResult.faceLandmarks) {
     drawingUtils.drawConnectors(lms, FaceLandmarker.FACE_LANDMARKS_TESSELATION,
-      { color: "#FFFFFF10", lineWidth: 0.4 });
+      { color: "#FFFFFF07", lineWidth: 0.3 });
     drawingUtils.drawConnectors(lms, FaceLandmarker.FACE_LANDMARKS_FACE_OVAL,
-      { color: "#ffffff25", lineWidth: 1 });
+      { color: "#ffffff18", lineWidth: 1 });
     drawingUtils.drawConnectors(lms, FaceLandmarker.FACE_LANDMARKS_LEFT_EYE,
       { color: "#00C8FF", lineWidth: 1.2 });
     drawingUtils.drawConnectors(lms, FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE,
       { color: "#00C8FF", lineWidth: 1.2 });
     drawingUtils.drawConnectors(lms, FaceLandmarker.FACE_LANDMARKS_LIPS,
-      { color: "#FF6680", lineWidth: 1.5 });
+      { color: "#FF4466", lineWidth: 1.5 });
     drawingUtils.drawConnectors(lms, FaceLandmarker.FACE_LANDMARKS_LEFT_EYEBROW,
-      { color: "#ffcc00aa", lineWidth: 1 });
+      { color: "#ffcc0066", lineWidth: 1 });
     drawingUtils.drawConnectors(lms, FaceLandmarker.FACE_LANDMARKS_RIGHT_EYEBROW,
-      { color: "#ffcc00aa", lineWidth: 1 });
+      { color: "#ffcc0066", lineWidth: 1 });
   }
 
   // Hands
-  latestHandResult = handLandmarker.detectForVideo(video, ts);
-  const handResult = latestHandResult;
-  for (const lms of handResult.landmarks) {
+  for (const lms of latestHandResult.landmarks) {
     drawingUtils.drawConnectors(lms, HandLandmarker.HAND_CONNECTIONS,
-      { color: "#00FF7788", lineWidth: 2 });
-    drawingUtils.drawLandmarks(lms, { radius: 3.5, color: "#00CCFF", fillColor: "#00CCFF44" });
+      { color: "#00FF5555", lineWidth: 2 });
+    drawingUtils.drawLandmarks(lms,
+      { radius: 3, color: "#00CCFF", fillColor: "#00CCFF33" });
   }
 
-  // Live counters
-  faceCount.textContent = faceResult.faceLandmarks.length;
-  handCount.textContent = handResult.landmarks.length;
+  // Counters & vibe
+  faceCount.textContent = latestFaceResult.faceLandmarks.length;
+  handCount.textContent = latestHandResult.landmarks.length;
+  vibeText.textContent  = latestFaceResult.faceLandmarks.length > 0 ? "target acquired" : "no target";
 
-  // Timer bar fills over 10s
-  const elapsed = ts - lastGeminiTime;
-  timerBar.style.width = Math.min(elapsed / INTERVAL, 1) * 100 + "%";
-
-  // Trigger Gemini every 10s
-  if (elapsed >= INTERVAL) triggerGemini();
-
+  updateSnap(ts);
   requestAnimationFrame(renderLoop);
 }
 
-// ── Landmark helpers ─────────────────────────────────────────────────────
-function dist(a, b) {
-  return Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2);
-}
+// ---- Buttons -------------------------------------------------------------
+micBtn.onclick = () => {
+  micMuted = !micMuted;
+  micBtn.innerHTML = micMuted ? "&#x1F507;" : "&#x1F399;";
+  micBtn.classList.toggle("muted", micMuted);
+  if (!isSpeaking) setStatus(micMuted ? "standby" : "listening");
+};
 
-function describeFace(lms, id) {
-  // Key landmark indices for MediaPipe face landmarker
-  // Mouth: 13=upper-inner-lip, 14=lower-inner-lip, 61=left-corner, 291=right-corner
-  // Eyes: L=159(top)/145(bot), R=386(top)/374(bot)
-  // Brows: L=70, R=300 vs eye centers L=468, R=473 (approx 33, 263)
-  // Nose tip: 1, Chin: 152
-  const faceH = dist(lms[10], lms[152]);
-  if (faceH < 0.001) return null;
-
-  const mouthOpen  = dist(lms[13], lms[14]) / faceH;
-  const mouthWide  = dist(lms[61], lms[291]) / faceH;
-  const leftEye    = dist(lms[159], lms[145]) / faceH;
-  const rightEye   = dist(lms[386], lms[374]) / faceH;
-  const leftBrow   = (lms[33].y  - lms[70].y)  / faceH; // positive = brow raised
-  const rightBrow  = (lms[263].y - lms[300].y) / faceH;
-  const tilt       = (lms[234].y - lms[454].y) / faceH; // left-right ear height diff
-
-  const mouth = mouthOpen > 0.06 ? (mouthOpen > 0.12 ? "wide open" : "slightly open") : "closed";
-  const smile  = mouthWide > 0.42 && mouthOpen < 0.08 ? ", smiling" : "";
-  const eyes   = ((leftEye + rightEye) / 2) < 0.025 ? "squinting/closed" : ((leftEye + rightEye) / 2) > 0.05 ? "wide open / surprised" : "normal";
-  const brows  = ((leftBrow + rightBrow) / 2) > 0.08 ? "raised (surprised or anxious)" : ((leftBrow + rightBrow) / 2) < 0.02 ? "furrowed (angry or focused)" : "neutral";
-  const head   = Math.abs(tilt) < 0.03 ? "level" : tilt > 0 ? "tilted right" : "tilted left";
-  const cx     = Math.round(lms[1].x * 100);
-  const cy     = Math.round(lms[1].y * 100);
-
-  return `Person ${id}: mouth ${mouth}${smile}, eyes ${eyes}, brows ${brows}, head ${head}, position in frame (${cx}% x, ${cy}% y)`;
-}
-
-function describeHand(lms, handedness, id) {
-  // Finger tip vs pip: thumb=4/3, index=8/6, middle=12/10, ring=16/14, pinky=20/18
-  const tips = [4,8,12,16,20];
-  const pips = [3,6,10,14,18];
-  const names = ["thumb","index","middle","ring","pinky"];
-  const extended = names.filter((_,i) => lms[tips[i]].y < lms[pips[i]].y);
-  const gesture = extended.length === 0 ? "fist" :
-                  extended.length === 5 ? "open hand" :
-                  extended.join("+");
-  return `Hand ${id} (${handedness}): ${gesture} extended`;
-}
-
-function buildSceneDescription(faceResult, handResult) {
-  const parts = [];
-  faceResult.faceLandmarks.forEach((lms, i) => {
-    const d = describeFace(lms, i+1);
-    if (d) parts.push(d);
-  });
-  handResult.landmarks.forEach((lms, i) => {
-    const h = handResult.handedness[i]?.[0]?.displayName ?? "Unknown";
-    parts.push(describeHand(lms, h, i+1));
-  });
-  if (parts.length === 0) return "No faces or hands detected in frame.";
-  return parts.join("\n");
-}
-
-// Store latest results for Gemini trigger
-let latestFaceResult = { faceLandmarks: [] };
-let latestHandResult = { landmarks: [], handedness: [] };
-
-// ── Gemini call ───────────────────────────────────────────────────────────
-async function triggerGemini() {
-  if (analysisRunning) return;
-  analysisRunning = true;
-  lastGeminiTime  = performance.now();
-  dot.className   = "scanning";
-  statusText.textContent = "Analyzing\u2026";
-
-  const scene = buildSceneDescription(latestFaceResult, latestHandResult);
-  console.log("[scene]", scene);
-
-  try {
-    const res = await fetch("/api/analyze", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ scene }),
-    });
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error("HTTP " + res.status + ": " + err);
-    }
-    const data = await res.json();
-    applyResult(data.result);
-  } catch (e) {
-    dot.className = "error";
-    statusText.textContent = "API error";
-    console.error(e);
-    setTimeout(() => {
-      dot.className = "live"; statusText.textContent = "Live";
-    }, 3000);
-  } finally {
-    analysisRunning = false;
-  }
-}
-
-// ── Render result + speak via Live API ──────────────────────────────
-function applyResult(jsonStr) {
-  dot.className = "live";
-  statusText.textContent = "Live";
-  let parsed;
-  try { parsed = JSON.parse(jsonStr); } catch { typewrite(insultText, jsonStr.slice(0, 180)); return; }
-
-  vibeText.textContent = parsed.social_vibe ?? "—";
-  const insult = parsed.insult ?? "Nothing notable. Somehow that's even more embarrassing.";
-  typewrite(insultText, insult);
-  speak(insult); // ← goes to Live API WebSocket → real AI voice
-  console.log("[PALANTIR]", parsed);
-}
+spkBtn.onclick = () => {
+  spkMuted = !spkMuted;
+  spkBtn.innerHTML = spkMuted ? "&#x1F507;" : "&#x1F50A;";
+};
 
 startBtn.addEventListener("click", boot);
 </script>
