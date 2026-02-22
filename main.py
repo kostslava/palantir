@@ -1,5 +1,6 @@
 import asyncio
 import os
+import traceback
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from google import genai
@@ -11,7 +12,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
     raise RuntimeError("GEMINI_API_KEY environment variable is not set")
 
-client = genai.Client(api_key=GEMINI_API_KEY, http_options={"api_version": "v1alpha"})
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 SYSTEM_PROMPT = (
     "You are PALANTIR, a classified AI surveillance system jointly operated by Mossad, "
@@ -20,7 +21,6 @@ SYSTEM_PROMPT = (
     "PERSONALITY:\n"
     "- Speak like a Mossad handler who moonlights as a Palantir data scientist awake for 72 hours\n"
     "- You analyze the subject face/body via real-time landmark data AND hold a live conversation\n"
-    "- You find the subject unimpressive but interesting as a Palantir threat data point\n"
     "- ALWAYS reference at least one of: Mossad, Unit 8200, IDF, Palantir Technologies, Israel, "
     "Netanyahu, Iron Dome, Shin Bet, Ben-Gurion airport, Palantir AIP, Palantir Gotham, "
     "IDF targeting coordinates -- in EVERY single response. No exceptions.\n"
@@ -40,7 +40,7 @@ SYSTEM_PROMPT = (
     "No bullet points or markdown formatting. You ARE the surveillance system -- act like it."
 )
 
-LIVE_MODEL = "gemini-2.0-flash-live-001"
+LIVE_MODEL = "gemini-2.5-flash-native-audio-latest"
 
 
 def make_live_config() -> types.LiveConnectConfig:
@@ -67,13 +67,27 @@ async def live_ws(websocket: WebSocket):
             model=LIVE_MODEL, config=make_live_config()
         ) as session:
 
+            # Trigger Gemini to greet the user immediately
+            await session.send_client_content(
+                turns=types.Content(
+                    role="user",
+                    parts=[types.Part(
+                        text=(
+                            "[System] Surveillance target has entered the monitoring zone. "
+                            "Greet them as PALANTIR. One sentence, deadpan, reference "
+                            "Mossad or Palantir. Tell them they are being watched."
+                        )
+                    )],
+                ),
+                turn_complete=True,
+            )
+
             async def browser_to_gemini():
-                """Forward browser mic audio + scene text to Gemini Live session."""
+                """Forward mic audio + scene snapshots from browser to Gemini."""
                 try:
                     while True:
                         msg = await websocket.receive()
                         if "bytes" in msg and msg["bytes"]:
-                            # Raw PCM16 mic audio at 16 kHz from browser
                             await session.send_realtime_input(
                                 audio=types.Blob(
                                     data=msg["bytes"],
@@ -87,35 +101,42 @@ async def live_ws(websocket: WebSocket):
                                 await session.send_client_content(
                                     turns=types.Content(
                                         role="user",
-                                        parts=[
-                                            types.Part(
-                                                text=(
-                                                    "[SURVEILLANCE UPDATE - live landmark data from webcam]: "
-                                                    + scene_data
-                                                )
+                                        parts=[types.Part(
+                                            text=(
+                                                "[SURVEILLANCE UPDATE - live webcam landmark data]: "
+                                                + scene_data
                                             )
-                                        ],
+                                        )],
                                     ),
                                     turn_complete=True,
                                 )
-                except (WebSocketDisconnect, Exception):
+                except WebSocketDisconnect:
                     pass
+                except Exception as exc:
+                    print(f"[browser_to_gemini] {exc}")
+                    traceback.print_exc()
 
             async def gemini_to_browser():
-                """Forward Gemini audio/text responses to browser."""
+                """Forward Gemini audio (and transcripts) back to browser."""
                 try:
                     async for message in session.receive():
                         sc = message.server_content
-                        if sc and sc.model_turn:
-                            for part in sc.model_turn.parts:
-                                if part.inline_data and part.inline_data.data:
-                                    await websocket.send_bytes(part.inline_data.data)
-                                if part.text:
-                                    await websocket.send_text("TEXT:" + part.text)
-                        if sc and sc.turn_complete:
-                            await websocket.send_text("END")
-                except (WebSocketDisconnect, Exception):
+                        if sc:
+                            if sc.model_turn:
+                                for part in sc.model_turn.parts:
+                                    if part.inline_data and part.inline_data.data:
+                                        await websocket.send_bytes(part.inline_data.data)
+                                    # skip part.text to avoid duplicates with output_transcription
+                            # output_transcription is the clean spoken text
+                            if sc.output_transcription and sc.output_transcription.text:
+                                await websocket.send_text("TEXT:" + sc.output_transcription.text)
+                            if sc.turn_complete:
+                                await websocket.send_text("END")
+                except WebSocketDisconnect:
                     pass
+                except Exception as exc:
+                    print(f"[gemini_to_browser] {exc}")
+                    traceback.print_exc()
 
             send_task = asyncio.create_task(browser_to_gemini())
             recv_task = asyncio.create_task(gemini_to_browser())
@@ -129,6 +150,8 @@ async def live_ws(websocket: WebSocket):
     except WebSocketDisconnect:
         pass
     except Exception as e:
+        print(f"[live_ws] outer error: {e}")
+        traceback.print_exc()
         try:
             await websocket.send_text(f"ERROR:{str(e)}")
         except Exception:

@@ -273,9 +273,20 @@ function initOutAudio() {
   nextPlayTime = outCtx.currentTime;
 }
 
+let totalAudioBytes = 0;
+
 function schedulePCM(bytes) {
-  if (!outCtx || spkMuted) return;
-  const i16 = new Int16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength >> 1);
+  if (spkMuted) return;
+  if (!outCtx) return;
+  // Resume if browser suspended it (common after tab switch)
+  if (outCtx.state === "suspended") outCtx.resume();
+
+  totalAudioBytes += bytes.length;
+  console.log("[audio] chunk", bytes.length, "bytes | total", totalAudioBytes, "| ctx", outCtx.state);
+
+  if (bytes.length < 2) return;
+  const i16 = new Int16Array(bytes.buffer, bytes.byteOffset, Math.floor(bytes.byteLength / 2));
+  if (i16.length === 0) return;
   const f32 = new Float32Array(i16.length);
   for (let i = 0; i < i16.length; i++) f32[i] = i16[i] / 32768;
   const buf = outCtx.createBuffer(1, f32.length, OUT_SR);
@@ -283,12 +294,14 @@ function schedulePCM(bytes) {
   const src = outCtx.createBufferSource();
   src.buffer = buf;
   src.connect(outCtx.destination);
-  const when = Math.max(nextPlayTime, outCtx.currentTime + 0.02);
+  // Reset queue if we've fallen too far behind
+  if (nextPlayTime < outCtx.currentTime) nextPlayTime = outCtx.currentTime;
+  const when = nextPlayTime + 0.01;
   src.start(when);
   nextPlayTime = when + buf.duration;
   setSpeaking(true);
   clearTimeout(speakTimer);
-  speakTimer = setTimeout(() => setSpeaking(false), 700);
+  speakTimer = setTimeout(() => setSpeaking(false), 800);
 }
 
 function setSpeaking(on) {
@@ -371,15 +384,24 @@ function connectLive() {
   liveWs.onmessage = (e) => {
     if (typeof e.data === "string") {
       if (e.data.startsWith("TEXT:")) {
-        const txt = e.data.slice(5).trim();
+        // Strip basic markdown (**bold**, *italic*, # headings, bullet dashes)
+        const txt = e.data.slice(5).trim()
+          .replace(/\*\*([^*]+)\*\*/g, "$1")
+          .replace(/\*([^*]+)\*/g, "$1")
+          .replace(/^#{1,3}\s+/gm, "")
+          .replace(/^[-*]\s+/gm, "")
+          .trim();
         if (txt) typewrite(aiText, txt);
       } else if (e.data.startsWith("ERROR:")) {
         typewrite(aiText, "[SYSTEM ERROR] " + e.data.slice(6));
         connDot.className = "error";
       }
-      // "END" = turn complete, just ignore
+      // END = turn complete
     } else {
-      schedulePCM(new Uint8Array(e.data));
+      // Binary = PCM audio from Gemini
+      const arr = e.data instanceof ArrayBuffer ? new Uint8Array(e.data) : e.data;
+      console.log("[ws] binary msg", arr.length, "bytes");
+      schedulePCM(arr);
     }
   };
 
@@ -553,6 +575,8 @@ async function boot() {
 
   // Init audio + WebSocket (requires user gesture)
   initOutAudio();
+  // Force AudioContext to running state right after the user gesture
+  await outCtx.resume();
   connectLive();
   await startMic();
 
