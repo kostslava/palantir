@@ -383,11 +383,31 @@ overlayImgHappy.src = "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec
 const overlayImgAngry = new Image();
 overlayImgAngry.crossOrigin = "anonymous";
 overlayImgAngry.src = "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9b/Benjamin_Netanyahu_2023%2C_US_DoD.jpg/440px-Benjamin_Netanyahu_2023%2C_US_DoD.jpg";
+const overlayImgRandom = new Image();
+overlayImgRandom.crossOrigin = "anonymous";
+overlayImgRandom.src = "https://www.boredpanda.com/blog/wp-content/uploads/2025/10/sophie-rain-reveals-she-made-83-million-dollars-without-posting-intimate-photos-68f26e6c1cfbe-png__700.jpg";
+
+// Random overlay: swap face to the random image for ~2s every ~8s
+let _randomOverlayActive = false;
+let _randomOverlayTimer = null;
+function _scheduleRandomOverlay() {
+  const delay = 6000 + Math.random() * 8000;  // 6-14s until next flash
+  _randomOverlayTimer = setTimeout(() => {
+    if (overlayImgRandom.complete && overlayImgRandom.naturalWidth) {
+      _randomOverlayActive = true;
+      setTimeout(() => { _randomOverlayActive = false; _scheduleRandomOverlay(); }, 1800 + Math.random() * 1200);
+    } else {
+      _scheduleRandomOverlay();
+    }
+  }, delay);
+}
+_scheduleRandomOverlay();
 
 function drawFaceOverlay(lms) {
   let img = null;
-  if      (currentMood === "happy") img = overlayImgHappy;
-  else if (currentMood === "angry") img = overlayImgAngry;
+  if      (_randomOverlayActive)            img = overlayImgRandom;
+  else if (currentMood === "happy")         img = overlayImgHappy;
+  else if (currentMood === "angry")         img = overlayImgAngry;
   if (!img || !img.complete || !img.naturalWidth) return;
   const W = canvas.width, H = canvas.height;
   // Compute face bounding box from all 468 landmarks
