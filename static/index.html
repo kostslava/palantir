@@ -197,6 +197,12 @@ async function boot() {
   // Step 1: get camera stream (must be inside a user gesture)
   loadStatus.style.color = "";
   loadStatus.textContent = "Requesting camera\u2026";
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    fail("Camera API unavailable — open this page in Chrome or Safari at http://localhost:8000 (not inside VS Code's browser)");
+    return;
+  }
+
   let stream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({
@@ -287,7 +293,8 @@ function renderLoop() {
   const ts = performance.now();
 
   // Face mesh
-  const faceResult = faceLandmarker.detectForVideo(video, ts);
+  latestFaceResult = faceLandmarker.detectForVideo(video, ts);
+  const faceResult = latestFaceResult;
   for (const lms of faceResult.faceLandmarks) {
     drawingUtils.drawConnectors(lms, FaceLandmarker.FACE_LANDMARKS_TESSELATION,
       { color: "#FFFFFF10", lineWidth: 0.4 });
@@ -306,7 +313,8 @@ function renderLoop() {
   }
 
   // Hands
-  const handResult = handLandmarker.detectForVideo(video, ts);
+  latestHandResult = handLandmarker.detectForVideo(video, ts);
+  const handResult = latestHandResult;
   for (const lms of handResult.landmarks) {
     drawingUtils.drawConnectors(lms, HandLandmarker.HAND_CONNECTIONS,
       { color: "#00FF7788", lineWidth: 2 });
@@ -327,6 +335,69 @@ function renderLoop() {
   requestAnimationFrame(renderLoop);
 }
 
+// ── Landmark helpers ─────────────────────────────────────────────────────
+function dist(a, b) {
+  return Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2);
+}
+
+function describeFace(lms, id) {
+  // Key landmark indices for MediaPipe face landmarker
+  // Mouth: 13=upper-inner-lip, 14=lower-inner-lip, 61=left-corner, 291=right-corner
+  // Eyes: L=159(top)/145(bot), R=386(top)/374(bot)
+  // Brows: L=70, R=300 vs eye centers L=468, R=473 (approx 33, 263)
+  // Nose tip: 1, Chin: 152
+  const faceH = dist(lms[10], lms[152]);
+  if (faceH < 0.001) return null;
+
+  const mouthOpen  = dist(lms[13], lms[14]) / faceH;
+  const mouthWide  = dist(lms[61], lms[291]) / faceH;
+  const leftEye    = dist(lms[159], lms[145]) / faceH;
+  const rightEye   = dist(lms[386], lms[374]) / faceH;
+  const leftBrow   = (lms[33].y  - lms[70].y)  / faceH; // positive = brow raised
+  const rightBrow  = (lms[263].y - lms[300].y) / faceH;
+  const tilt       = (lms[234].y - lms[454].y) / faceH; // left-right ear height diff
+
+  const mouth = mouthOpen > 0.06 ? (mouthOpen > 0.12 ? "wide open" : "slightly open") : "closed";
+  const smile  = mouthWide > 0.42 && mouthOpen < 0.08 ? ", smiling" : "";
+  const eyes   = ((leftEye + rightEye) / 2) < 0.025 ? "squinting/closed" : ((leftEye + rightEye) / 2) > 0.05 ? "wide open / surprised" : "normal";
+  const brows  = ((leftBrow + rightBrow) / 2) > 0.08 ? "raised (surprised or anxious)" : ((leftBrow + rightBrow) / 2) < 0.02 ? "furrowed (angry or focused)" : "neutral";
+  const head   = Math.abs(tilt) < 0.03 ? "level" : tilt > 0 ? "tilted right" : "tilted left";
+  const cx     = Math.round(lms[1].x * 100);
+  const cy     = Math.round(lms[1].y * 100);
+
+  return `Person ${id}: mouth ${mouth}${smile}, eyes ${eyes}, brows ${brows}, head ${head}, position in frame (${cx}% x, ${cy}% y)`;
+}
+
+function describeHand(lms, handedness, id) {
+  // Finger tip vs pip: thumb=4/3, index=8/6, middle=12/10, ring=16/14, pinky=20/18
+  const tips = [4,8,12,16,20];
+  const pips = [3,6,10,14,18];
+  const names = ["thumb","index","middle","ring","pinky"];
+  const extended = names.filter((_,i) => lms[tips[i]].y < lms[pips[i]].y);
+  const gesture = extended.length === 0 ? "fist" :
+                  extended.length === 5 ? "open hand" :
+                  extended.join("+");
+  return `Hand ${id} (${handedness}): ${gesture} extended`;
+}
+
+function buildSceneDescription(faceResult, handResult) {
+  const parts = [];
+  faceResult.faceLandmarks.forEach((lms, i) => {
+    const d = describeFace(lms, i+1);
+    if (d) parts.push(d);
+  });
+  handResult.landmarks.forEach((lms, i) => {
+    const h = handResult.handedness[i]?.[0]?.displayName ?? "Unknown";
+    parts.push(describeHand(lms, h, i+1));
+  });
+  if (parts.length === 0) return "No faces or hands detected in frame.";
+  return parts.join("\n");
+}
+
+// Store latest results for Gemini trigger
+let latestFaceResult = { faceLandmarks: [] };
+let latestHandResult = { landmarks: [], handedness: [] };
+
 // ── Gemini call ───────────────────────────────────────────────────────────
 async function triggerGemini() {
   if (analysisRunning) return;
@@ -335,21 +406,19 @@ async function triggerGemini() {
   dot.className   = "scanning";
   statusText.textContent = "Analyzing\u2026";
 
-  // Capture frame — flip horizontally so Gemini sees the correct orientation
-  const cap = document.createElement("canvas");
-  cap.width = video.videoWidth; cap.height = video.videoHeight;
-  const cctx = cap.getContext("2d");
-  cctx.translate(cap.width, 0); cctx.scale(-1, 1);
-  cctx.drawImage(video, 0, 0);
-  const base64 = cap.toDataURL("image/jpeg", 0.75).split(",")[1];
+  const scene = buildSceneDescription(latestFaceResult, latestHandResult);
+  console.log("[scene]", scene);
 
   try {
     const res = await fetch("/api/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image: base64 }),
+      body: JSON.stringify({ scene }),
     });
-    if (!res.ok) throw new Error("HTTP " + res.status);
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error("HTTP " + res.status + ": " + err);
+    }
     const data = await res.json();
     applyResult(data.result);
   } catch (e) {
@@ -357,7 +426,7 @@ async function triggerGemini() {
     statusText.textContent = "API error";
     console.error(e);
     setTimeout(() => {
-      if (!analysisRunning) { dot.className = "live"; statusText.textContent = "Live"; }
+      dot.className = "live"; statusText.textContent = "Live";
     }, 3000);
   } finally {
     analysisRunning = false;

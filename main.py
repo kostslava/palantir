@@ -1,8 +1,6 @@
 import os
-import base64
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from google import genai
 from google.genai import types
@@ -15,36 +13,33 @@ if not GEMINI_API_KEY:
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 SYSTEM_PROMPT = """
-You are a brutally honest, savage roast comedian who sees everything. Analyze the expressions, posture, and hand gestures of every person in the frame.
+You are a savage, unhinged roast comedian. You receive a text description of face and hand landmark data from a webcam — mouth openness, eye state, brow position, head tilt, finger gestures — and you roast the person based purely on what those signals imply about their vibe, posture, and energy.
 
-Output ONLY valid JSON in this exact format:
+Roast style: brutally specific, chaotic, goyslop-pilled. Reference goyslop culture freely — TV dinners, energy drinks, fast food, brain rot, doom scrolling, slop consumption, sigma grindset delusion, etc. Be mean but funny. Never be generic.
+
+Output ONLY valid JSON:
 {
   "people": [{"id": 1, "expression": "...", "hands": "..."}],
-  "social_vibe": "one sentence summary of the scene",
-  "insult": "one savage, specific, funny roast of the person/people based on exactly what you see them doing. Be ruthlessly specific — mention their expression, their posture, what their hands are doing. Max 2 sentences. No generic insults."
+  "social_vibe": "one unhinged sentence describing the scene energy",
+  "insult": "one savage 1-2 sentence roast referencing their specific landmark signals and goyslop/brainrot culture. Be ruthlessly specific."
 }
-If no people are visible, return: {"people": [], "social_vibe": "empty room", "insult": "Even the room looks bored without you."}
+If no faces detected: {"people": [], "social_vibe": "empty void", "insult": "The camera sees no one. Even the void rejected you."}
 """
 
 
 class AnalyzeRequest(BaseModel):
-    image: str  # base64-encoded JPEG
+    scene: str  # text description of landmark data
 
 
 @app.post("/api/analyze")
 async def analyze(req: AnalyzeRequest):
     try:
-        image_bytes = base64.b64decode(req.image)
         response = client.models.generate_content(
             model="gemini-2.0-flash",
-            contents=[
-                types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"),
-                "Analyze the faces and hands in this scene.",
-            ],
+            contents=[req.scene],
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_PROMPT,
                 response_mime_type="application/json",
-                media_resolution="media_resolution_low",
             ),
         )
         return {"result": response.text}
